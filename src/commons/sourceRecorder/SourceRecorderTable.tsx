@@ -169,7 +169,7 @@ class SourcecastTable extends React.Component<SourceRecorderTableProps, State> {
         <div className="SourcecastTable">
           <div className="ag-grid-parent">
             <AgGridReact
-              domLayout={'autoHeight'}
+              domLayout="autoHeight"
               columnDefs={this.state.columnDefs}
               defaultColDef={this.defaultColumnDefs}
               onGridReady={this.onGridReady}
@@ -191,7 +191,7 @@ class SourcecastTable extends React.Component<SourceRecorderTableProps, State> {
     this.setState({ filterValue: changeVal });
 
     if (this.gridApi) {
-      this.gridApi.setQuickFilter(changeVal);
+      this.gridApi.setGridOption('quickFilterText', changeVal);
     }
   };
 

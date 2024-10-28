@@ -1,21 +1,12 @@
 import { Context, IOptions, Result, resume, runFilesInContext, runInContext } from 'js-slang';
 import createContext from 'js-slang/dist/createContext';
-import { Chapter, Finished, Variant } from 'js-slang/dist/types';
+import { Chapter, ErrorType, Finished, SourceError, Variant } from 'js-slang/dist/types';
 import { call } from 'redux-saga/effects';
 import { expectSaga } from 'redux-saga-test-plan';
 import * as matchers from 'redux-saga-test-plan/matchers';
 import { showFullJSDisclaimer, showFullTSDisclaimer } from 'src/commons/utils/WarningDialogHelper';
 
-import {
-  beginInterruptExecution,
-  debuggerReset,
-  endDebuggerPause,
-  endInterruptExecution,
-  evalInterpreterError,
-  evalInterpreterSuccess,
-  evalTestcaseFailure,
-  evalTestcaseSuccess
-} from '../../application/actions/InterpreterActions';
+import InterpreterActions from '../../application/actions/InterpreterActions';
 import {
   defaultState,
   fullJSLanguage,
@@ -23,13 +14,6 @@ import {
   OverallState
 } from '../../application/ApplicationTypes';
 import { externalLibraries, ExternalLibraryName } from '../../application/types/ExternalTypes';
-import {
-  BEGIN_DEBUG_PAUSE,
-  BEGIN_INTERRUPT_EXECUTION,
-  DEBUG_RESET,
-  DEBUG_RESUME,
-  EVAL_INTERPRETER_ERROR
-} from '../../application/types/InterpreterTypes';
 import { Library, Testcase, TestcaseType, TestcaseTypes } from '../../assessment/AssessmentTypes';
 import { mockRuntimeContext } from '../../mocks/ContextMocks';
 import { mockTestcases } from '../../mocks/GradingMocks';
@@ -37,36 +21,13 @@ import {
   showSuccessMessage,
   showWarningMessage
 } from '../../utils/notifications/NotificationsHelper';
-import {
-  beginClearContext,
-  changeExternalLibrary,
-  clearReplInput,
-  clearReplOutput,
-  clearReplOutputLast,
-  endClearContext,
-  moveCursor,
-  sendReplInputToOutput,
-  setEditorHighlightedLines,
-  setFolderMode
-} from '../../workspace/WorkspaceActions';
-import {
-  BEGIN_CLEAR_CONTEXT,
-  CHANGE_EXTERNAL_LIBRARY,
-  CHAPTER_SELECT,
-  CLEAR_REPL_OUTPUT,
-  END_CLEAR_CONTEXT,
-  EVAL_EDITOR,
-  EVAL_EDITOR_AND_TESTCASES,
-  EVAL_REPL,
-  EVAL_TESTCASE,
-  NAV_DECLARATION,
-  PLAYGROUND_EXTERNAL_SELECT,
-  TOGGLE_EDITOR_AUTORUN,
-  TOGGLE_FOLDER_MODE,
-  WorkspaceLocation,
-  WorkspaceState
-} from '../../workspace/WorkspaceTypes';
-import workspaceSaga, { evalCode, evalEditor, evalTestCode, runTestCase } from '../WorkspaceSaga';
+import WorkspaceActions from '../../workspace/WorkspaceActions';
+import { WorkspaceLocation, WorkspaceState } from '../../workspace/WorkspaceTypes';
+import workspaceSaga from '../WorkspaceSaga';
+import { evalCodeSaga } from '../WorkspaceSaga/helpers/evalCode';
+import { evalEditorSaga } from '../WorkspaceSaga/helpers/evalEditor';
+import { evalTestCode } from '../WorkspaceSaga/helpers/evalTestCode';
+import { runTestCase } from '../WorkspaceSaga/helpers/runTestCase';
 
 function generateDefaultState(
   workspaceLocation: WorkspaceLocation,
@@ -106,10 +67,10 @@ describe('TOGGLE_FOLDER_MODE', () => {
 
     return expectSaga(workspaceSaga)
       .withState(updatedDefaultState)
-      .put(setFolderMode(workspaceLocation, true))
+      .put(WorkspaceActions.setFolderMode(workspaceLocation, true))
       .call(showWarningMessage, 'Folder mode enabled', 750)
       .dispatch({
-        type: TOGGLE_FOLDER_MODE,
+        type: WorkspaceActions.toggleFolderMode.type,
         payload: { workspaceLocation }
       })
       .silentRun();
@@ -124,10 +85,10 @@ describe('TOGGLE_FOLDER_MODE', () => {
 
     return expectSaga(workspaceSaga)
       .withState(updatedDefaultState)
-      .put(setFolderMode(workspaceLocation, false))
+      .put(WorkspaceActions.setFolderMode(workspaceLocation, false))
       .call(showWarningMessage, 'Folder mode disabled', 750)
       .dispatch({
-        type: TOGGLE_FOLDER_MODE,
+        type: WorkspaceActions.toggleFolderMode.type,
         payload: { workspaceLocation }
       })
       .silentRun();
@@ -177,9 +138,9 @@ describe('EVAL_EDITOR', () => {
     return (
       expectSaga(workspaceSaga)
         .withState(newDefaultState)
-        .put(beginInterruptExecution(workspaceLocation))
-        .put(beginClearContext(workspaceLocation, library, false))
-        .put(clearReplOutput(workspaceLocation))
+        .put(InterpreterActions.beginInterruptExecution(workspaceLocation))
+        .put(WorkspaceActions.beginClearContext(workspaceLocation, library, false))
+        .put(WorkspaceActions.clearReplOutput(workspaceLocation))
         // calls evalCode here with the prepend in elevated Context: silent run
         .call.like({
           fn: runFilesInContext,
@@ -196,7 +157,7 @@ describe('EVAL_EDITOR', () => {
           ]
         })
         // running the prepend block should return 'reeee', but silent run -> not written to REPL
-        .not.put(evalInterpreterSuccess('reeee', workspaceLocation))
+        .not.put(InterpreterActions.evalInterpreterSuccess('reeee', workspaceLocation))
         // Single call to evalCode made by blockExtraMethods
         .call.like({ fn: runFilesInContext })
         // calls evalCode here with the student's program in normal Context
@@ -216,15 +177,15 @@ describe('EVAL_EDITOR', () => {
           ]
         })
         // running the student's program should return -1, which is written to REPL
-        .put(evalInterpreterSuccess(-1, workspaceLocation))
+        .put(InterpreterActions.evalInterpreterSuccess(-1, workspaceLocation))
         // should NOT attempt to execute the postpend block after above
         .not.call(runFilesInContext)
         .dispatch({
-          type: EVAL_EDITOR,
+          type: WorkspaceActions.evalEditor.type,
           payload: { workspaceLocation }
         })
         .dispatch({
-          type: END_CLEAR_CONTEXT
+          type: WorkspaceActions.endClearContext.type
         })
         .silentRun()
     );
@@ -238,7 +199,7 @@ describe('TOGGLE_EDITOR_AUTORUN', () => {
       .withState(defaultState)
       .call(showWarningMessage, 'Autorun Stopped', 750)
       .dispatch({
-        type: TOGGLE_EDITOR_AUTORUN,
+        type: WorkspaceActions.toggleEditorAutorun.type,
         payload: { workspaceLocation }
       })
       .silentRun();
@@ -253,7 +214,7 @@ describe('TOGGLE_EDITOR_AUTORUN', () => {
       .withState(newDefaultState)
       .call(showWarningMessage, 'Autorun Started', 750)
       .dispatch({
-        type: TOGGLE_EDITOR_AUTORUN,
+        type: WorkspaceActions.toggleEditorAutorun.type,
         payload: { workspaceLocation }
       })
       .silentRun();
@@ -270,9 +231,9 @@ describe('EVAL_REPL', () => {
     return (
       expectSaga(workspaceSaga)
         .withState(newState)
-        .put(beginInterruptExecution(workspaceLocation))
-        .put(clearReplInput(workspaceLocation))
-        .put(sendReplInputToOutput(replValue, workspaceLocation))
+        .put(InterpreterActions.beginInterruptExecution(workspaceLocation))
+        .put(WorkspaceActions.clearReplInput(workspaceLocation))
+        .put(WorkspaceActions.sendReplInputToOutput(replValue, workspaceLocation))
         // also calls evalCode here
         .call(runFilesInContext, { '/code.js': replValue }, '/code.js', context, {
           scheduler: 'preemptive',
@@ -283,7 +244,7 @@ describe('EVAL_REPL', () => {
           envSteps: -1
         })
         .dispatch({
-          type: EVAL_REPL,
+          type: WorkspaceActions.evalRepl.type,
           payload: { workspaceLocation }
         })
         .silentRun()
@@ -313,13 +274,13 @@ describe('DEBUG_RESUME', () => {
     state = generateDefaultState(workspaceLocation);
 
     return expectSaga(
-      evalCode,
+      evalCodeSaga,
       files,
       editorValueFilePath,
       context,
       execTime,
       workspaceLocation,
-      EVAL_EDITOR
+      WorkspaceActions.evalEditor.type
     )
       .withState(state)
       .silentRun();
@@ -343,24 +304,24 @@ describe('DEBUG_RESUME', () => {
             }
           }
         })
-        .put(beginInterruptExecution(workspaceLocation))
-        .put(clearReplOutput(workspaceLocation))
+        .put(InterpreterActions.beginInterruptExecution(workspaceLocation))
+        .put(WorkspaceActions.clearReplOutput(workspaceLocation))
         // TODO: Hardcoded to make use of the first editor tab. Rewrite after editor tabs are added.
-        .put(setEditorHighlightedLines(workspaceLocation, 0, []))
+        .put(WorkspaceActions.setEditorHighlightedLines(workspaceLocation, 0, []))
         // also calls evalCode here
         .call.like({
-          fn: evalCode,
+          fn: evalCodeSaga,
           args: [
             { '/code.js': editorValue },
             '/code.js',
             {},
             execTime,
             workspaceLocation,
-            DEBUG_RESUME
+            InterpreterActions.debuggerResume.type
           ]
         })
         .dispatch({
-          type: DEBUG_RESUME,
+          type: InterpreterActions.debuggerResume.type,
           payload: { workspaceLocation }
         })
         .silentRun()
@@ -378,11 +339,11 @@ describe('DEBUG_RESET', () => {
     return (
       expectSaga(workspaceSaga)
         .withState(newDefaultState)
-        .put(clearReplOutput(workspaceLocation))
+        .put(WorkspaceActions.clearReplOutput(workspaceLocation))
         // TODO: Hardcoded to make use of the first editor tab. Rewrite after editor tabs are added.
-        .put(setEditorHighlightedLines(workspaceLocation, 0, []))
+        .put(WorkspaceActions.setEditorHighlightedLines(workspaceLocation, 0, []))
         .dispatch({
-          type: DEBUG_RESET,
+          type: InterpreterActions.debuggerReset.type,
           payload: { workspaceLocation }
         })
         .silentRun()
@@ -448,9 +409,9 @@ describe('EVAL_TESTCASE', () => {
       expectSaga(workspaceSaga)
         .withState(newDefaultState)
         // Should interrupt execution and clear context but not clear REPL
-        .not.put(beginInterruptExecution(workspaceLocation))
-        .put(beginClearContext(workspaceLocation, library, false))
-        .not.put.actionType(CLEAR_REPL_OUTPUT)
+        .not.put(InterpreterActions.beginInterruptExecution(workspaceLocation))
+        .put(WorkspaceActions.beginClearContext(workspaceLocation, library, false))
+        .not.put.actionType(WorkspaceActions.clearReplOutput.type)
         // Expect it to shard a new privileged context here and execute chunks in order
         // calls evalCode here with the prepend in elevated Context: silent run
         .call.like({
@@ -462,7 +423,7 @@ describe('EVAL_TESTCASE', () => {
           ]
         })
         // running the prepend block should return 'boink', but silent run -> not written to REPL
-        .not.put(evalInterpreterSuccess('boink', workspaceLocation))
+        .not.put(InterpreterActions.evalInterpreterSuccess('boink', workspaceLocation))
         // Single call to evalCode made by blockExtraMethods
         .call.like({ fn: runFilesInContext })
         // calls evalCode here with the student's program in normal Context
@@ -476,7 +437,7 @@ describe('EVAL_TESTCASE', () => {
           ]
         })
         // running the student's program should return 69, which is NOT written to REPL (silent)
-        .not.put(evalInterpreterSuccess(69, workspaceLocation))
+        .not.put(InterpreterActions.evalInterpreterSuccess(69, workspaceLocation))
         // Single call to evalCode made by restoreExtraMethods to enable postpend to run in S4
         .call.like({ fn: runFilesInContext })
         // calls evalCode here again with the postpend now in elevated Context: silent run
@@ -489,7 +450,7 @@ describe('EVAL_TESTCASE', () => {
           ]
         })
         // running the postpend block should return true, but silent run -> not written to REPL
-        .not.put(evalInterpreterSuccess(true, workspaceLocation))
+        .not.put(InterpreterActions.evalInterpreterSuccess(true, workspaceLocation))
         // Single call to evalCode made by blockExtraMethods after postpend execution is complete
         .call.like({ fn: runFilesInContext })
         // finally calls evalTestCode on the testcase
@@ -498,14 +459,14 @@ describe('EVAL_TESTCASE', () => {
           args: [editorTestcases[0].program]
         })
         // this testcase should execute fine in the elevated context and thus write result to REPL
-        .put(evalInterpreterSuccess(42, workspaceLocation))
-        .put(evalTestcaseSuccess(42, workspaceLocation, testcaseId))
+        .put(InterpreterActions.evalInterpreterSuccess(42, workspaceLocation))
+        .put(InterpreterActions.evalTestcaseSuccess(42, workspaceLocation, testcaseId))
         .dispatch({
-          type: EVAL_TESTCASE,
+          type: WorkspaceActions.evalTestcase.type,
           payload: { workspaceLocation, testcaseId }
         })
         .dispatch({
-          type: END_CLEAR_CONTEXT
+          type: WorkspaceActions.endClearContext.type
         })
         .silentRun()
     );
@@ -546,11 +507,11 @@ describe('CHAPTER_SELECT', () => {
 
     return expectSaga(workspaceSaga)
       .withState(newDefaultState)
-      .put(beginClearContext(workspaceLocation, library, false))
-      .put(clearReplOutput(workspaceLocation))
+      .put(WorkspaceActions.beginClearContext(workspaceLocation, library, false))
+      .put(WorkspaceActions.clearReplOutput(workspaceLocation))
       .call(showSuccessMessage, `Switched to Source \xa7${newChapter}`, 1000)
       .dispatch({
-        type: CHAPTER_SELECT,
+        type: WorkspaceActions.chapterSelect.type,
         payload: { chapter: newChapter, variant: Variant.DEFAULT, workspaceLocation }
       })
       .silentRun();
@@ -563,11 +524,11 @@ describe('CHAPTER_SELECT', () => {
 
     return expectSaga(workspaceSaga)
       .withState(newDefaultState)
-      .not.put.actionType(BEGIN_CLEAR_CONTEXT)
-      .not.put.actionType(CLEAR_REPL_OUTPUT)
+      .not.put.actionType(WorkspaceActions.beginClearContext.type)
+      .not.put.actionType(WorkspaceActions.clearReplOutput.type)
       .not.call.fn(showSuccessMessage)
       .dispatch({
-        type: CHAPTER_SELECT,
+        type: WorkspaceActions.chapterSelect.type,
         payload: { chapter: newChapter, variant: newVariant, workspaceLocation }
       })
       .silentRun();
@@ -590,11 +551,11 @@ describe('CHAPTER_SELECT', () => {
         .provide([[matchers.call.fn(showFullJSDisclaimer), true]])
         .withState(newDefaultState)
         .call(showFullJSDisclaimer)
-        .put(beginClearContext(workspaceLocation, library, false))
-        .put(clearReplOutput(workspaceLocation))
+        .put(WorkspaceActions.beginClearContext(workspaceLocation, library, false))
+        .put(WorkspaceActions.clearReplOutput(workspaceLocation))
         .call(showSuccessMessage, `Switched to full JavaScript`, 1000)
         .dispatch({
-          type: CHAPTER_SELECT,
+          type: WorkspaceActions.chapterSelect.type,
           payload: {
             chapter: fullJSLanguage.chapter,
             variant: fullJSLanguage.variant,
@@ -611,11 +572,11 @@ describe('CHAPTER_SELECT', () => {
         .provide([[matchers.call.fn(showFullJSDisclaimer), false]])
         .withState(newDefaultState)
         .call(showFullJSDisclaimer)
-        .not.put.actionType(BEGIN_CLEAR_CONTEXT)
-        .not.put.actionType(CLEAR_REPL_OUTPUT)
+        .not.put.actionType(WorkspaceActions.beginClearContext.type)
+        .not.put.actionType(WorkspaceActions.clearReplOutput.type)
         .not.call.fn(showSuccessMessage)
         .dispatch({
-          type: CHAPTER_SELECT,
+          type: WorkspaceActions.chapterSelect.type,
           payload: {
             chapter: fullJSLanguage.chapter,
             variant: fullJSLanguage.variant,
@@ -643,11 +604,11 @@ describe('CHAPTER_SELECT', () => {
         .provide([[matchers.call.fn(showFullTSDisclaimer), true]])
         .withState(newDefaultState)
         .call(showFullTSDisclaimer)
-        .put(beginClearContext(workspaceLocation, library, false))
-        .put(clearReplOutput(workspaceLocation))
+        .put(WorkspaceActions.beginClearContext(workspaceLocation, library, false))
+        .put(WorkspaceActions.clearReplOutput(workspaceLocation))
         .call(showSuccessMessage, `Switched to full TypeScript`, 1000)
         .dispatch({
-          type: CHAPTER_SELECT,
+          type: WorkspaceActions.chapterSelect.type,
           payload: {
             chapter: fullTSLanguage.chapter,
             variant: fullTSLanguage.variant,
@@ -664,11 +625,11 @@ describe('CHAPTER_SELECT', () => {
         .provide([[matchers.call.fn(showFullTSDisclaimer), false]])
         .withState(newDefaultState)
         .call(showFullTSDisclaimer)
-        .not.put.actionType(BEGIN_CLEAR_CONTEXT)
-        .not.put.actionType(CLEAR_REPL_OUTPUT)
+        .not.put.actionType(WorkspaceActions.beginClearContext.type)
+        .not.put.actionType(WorkspaceActions.clearReplOutput.type)
         .not.call.fn(showSuccessMessage)
         .dispatch({
-          type: CHAPTER_SELECT,
+          type: WorkspaceActions.chapterSelect.type,
           payload: {
             chapter: fullTSLanguage.chapter,
             variant: fullTSLanguage.variant,
@@ -722,12 +683,12 @@ describe('PLAYGROUND_EXTERNAL_SELECT', () => {
 
     return expectSaga(workspaceSaga)
       .withState(newDefaultState)
-      .put(changeExternalLibrary(newExternalLibraryName, workspaceLocation))
-      .put(beginClearContext(workspaceLocation, library, true))
-      .put(clearReplOutput(workspaceLocation))
+      .put(WorkspaceActions.changeExternalLibrary(newExternalLibraryName, workspaceLocation))
+      .put(WorkspaceActions.beginClearContext(workspaceLocation, library, true))
+      .put(WorkspaceActions.clearReplOutput(workspaceLocation))
       .call(showSuccessMessage, `Switched to ${newExternalLibraryName} library`, 1000)
       .dispatch({
-        type: PLAYGROUND_EXTERNAL_SELECT,
+        type: WorkspaceActions.externalLibrarySelect.type,
         payload: {
           externalLibraryName: newExternalLibraryName,
           workspaceLocation
@@ -747,12 +708,12 @@ describe('PLAYGROUND_EXTERNAL_SELECT', () => {
 
     return expectSaga(workspaceSaga)
       .withState(newDefaultState)
-      .not.put.actionType(CHANGE_EXTERNAL_LIBRARY)
-      .not.put.actionType(BEGIN_CLEAR_CONTEXT)
-      .not.put.actionType(CLEAR_REPL_OUTPUT)
+      .not.put.actionType(WorkspaceActions.changeExternalLibrary.type)
+      .not.put.actionType(WorkspaceActions.beginClearContext.type)
+      .not.put.actionType(WorkspaceActions.clearReplOutput.type)
       .not.call.fn(showSuccessMessage)
       .dispatch({
-        type: PLAYGROUND_EXTERNAL_SELECT,
+        type: WorkspaceActions.externalLibrarySelect.type,
         payload: {
           externalLibraryName: newExternalLibraryName,
           workspaceLocation
@@ -802,9 +763,9 @@ describe('BEGIN_CLEAR_CONTEXT', () => {
     };
 
     return expectSaga(workspaceSaga)
-      .put.like({ action: endClearContext(library, workspaceLocation) })
+      .put.like({ action: WorkspaceActions.endClearContext(library, workspaceLocation) })
       .dispatch({
-        type: BEGIN_CLEAR_CONTEXT,
+        type: WorkspaceActions.beginClearContext.type,
         payload: { library, workspaceLocation, shouldInitLibrary: true }
       })
       .silentRun();
@@ -832,7 +793,7 @@ describe('evalCode', () => {
       [codeFilePath]: code
     };
     execTime = 1000;
-    actionType = EVAL_EDITOR;
+    actionType = WorkspaceActions.evalEditor.type;
     context = createContext(); // mockRuntimeContext();
     value = 'test value';
     options = {
@@ -844,13 +805,13 @@ describe('evalCode', () => {
       envSteps: -1
     };
     lastDebuggerResult = { status: 'error' };
-    state = generateDefaultState(workspaceLocation);
+    state = generateDefaultState(workspaceLocation, { lastDebuggerResult: { status: 'error' } });
   });
 
   describe('on EVAL_EDITOR action without interruptions or pausing', () => {
     test('calls runInContext, puts evalInterpreterSuccess when runInContext returns finished', () => {
       return expectSaga(
-        evalCode,
+        evalCodeSaga,
         files,
         codeFilePath,
         context,
@@ -873,13 +834,13 @@ describe('evalCode', () => {
           throwInfiniteLoops: true,
           envSteps: -1
         })
-        .put(evalInterpreterSuccess(value, workspaceLocation))
+        .put(InterpreterActions.evalInterpreterSuccess(value, workspaceLocation))
         .silentRun();
     });
 
     test('calls runInContext, puts endDebuggerPause and evalInterpreterSuccess when runInContext returns suspended', () => {
       return expectSaga(
-        evalCode,
+        evalCodeSaga,
         files,
         codeFilePath,
         context,
@@ -899,14 +860,14 @@ describe('evalCode', () => {
           throwInfiniteLoops: true,
           envSteps: -1
         })
-        .put(endDebuggerPause(workspaceLocation))
-        .put(evalInterpreterSuccess('Breakpoint hit!', workspaceLocation))
+        .put(InterpreterActions.endDebuggerPause(workspaceLocation))
+        .put(InterpreterActions.evalInterpreterSuccess('Breakpoint hit!', workspaceLocation))
         .silentRun();
     });
 
     test('calls runInContext, puts evalInterpreterError when runInContext returns error', () => {
       return expectSaga(
-        evalCode,
+        evalCodeSaga,
         files,
         codeFilePath,
         context,
@@ -923,7 +884,7 @@ describe('evalCode', () => {
           throwInfiniteLoops: true,
           envSteps: -1
         })
-        .put.like({ action: { type: EVAL_INTERPRETER_ERROR } })
+        .put.like({ action: { type: InterpreterActions.evalInterpreterError.type } })
         .silentRun();
     });
 
@@ -941,7 +902,7 @@ describe('evalCode', () => {
       }).then(result => (context = (result as Finished).context));
 
       return expectSaga(
-        evalCode,
+        evalCodeSaga,
         files,
         codeFilePath,
         context,
@@ -958,7 +919,7 @@ describe('evalCode', () => {
           throwInfiniteLoops: true,
           envSteps: -1
         })
-        .put(evalInterpreterError(context.errors, workspaceLocation))
+        .put(InterpreterActions.evalInterpreterError(context.errors, workspaceLocation))
         .silentRun();
     });
   });
@@ -967,23 +928,23 @@ describe('evalCode', () => {
     // Ensure that lastDebuggerResult is set correctly before running each of the tests below
     beforeEach(() => {
       return expectSaga(
-        evalCode,
+        evalCodeSaga,
         files,
         codeFilePath,
         context,
         execTime,
         workspaceLocation,
-        EVAL_EDITOR
+        WorkspaceActions.evalEditor.type
       )
         .withState(state)
         .silentRun();
     });
 
     test('calls resume, puts evalInterpreterSuccess when resume returns finished', () => {
-      actionType = DEBUG_RESUME;
+      actionType = InterpreterActions.debuggerResume.type;
 
       return expectSaga(
-        evalCode,
+        evalCodeSaga,
         files,
         codeFilePath,
         context,
@@ -994,15 +955,15 @@ describe('evalCode', () => {
         .withState(state)
         .provide([[call(resume, lastDebuggerResult), { status: 'finished', value }]])
         .call(resume, lastDebuggerResult)
-        .put(evalInterpreterSuccess(value, workspaceLocation))
+        .put(InterpreterActions.evalInterpreterSuccess(value, workspaceLocation))
         .silentRun();
     });
 
     test('calls resume, puts endDebuggerPause and evalInterpreterSuccess when resume returns suspended', () => {
-      actionType = DEBUG_RESUME;
+      actionType = InterpreterActions.debuggerResume.type;
 
       return expectSaga(
-        evalCode,
+        evalCodeSaga,
         files,
         codeFilePath,
         context,
@@ -1013,16 +974,16 @@ describe('evalCode', () => {
         .withState(state)
         .provide([[call(resume, lastDebuggerResult), { status: 'suspended' }]])
         .call(resume, lastDebuggerResult)
-        .put(endDebuggerPause(workspaceLocation))
-        .put(evalInterpreterSuccess('Breakpoint hit!', workspaceLocation))
+        .put(InterpreterActions.endDebuggerPause(workspaceLocation))
+        .put(InterpreterActions.evalInterpreterSuccess('Breakpoint hit!', workspaceLocation))
         .silentRun();
     });
 
     test('calls resume, puts evalInterpreterError when resume returns error', () => {
-      actionType = DEBUG_RESUME;
+      actionType = InterpreterActions.debuggerResume.type;
 
       return expectSaga(
-        evalCode,
+        evalCodeSaga,
         files,
         codeFilePath,
         context,
@@ -1032,7 +993,7 @@ describe('evalCode', () => {
       )
         .withState(state)
         .call(resume, lastDebuggerResult)
-        .put.like({ action: { type: EVAL_INTERPRETER_ERROR } })
+        .put.like({ action: { type: InterpreterActions.evalInterpreterError.type } })
         .silentRun();
     });
   });
@@ -1040,7 +1001,7 @@ describe('evalCode', () => {
   describe('on interrupt', () => {
     test('puts debuggerReset, endInterruptExecution and calls showWarningMessage', () => {
       return expectSaga(
-        evalCode,
+        evalCodeSaga,
         files,
         codeFilePath,
         context,
@@ -1052,13 +1013,13 @@ describe('evalCode', () => {
         .provide({
           race: () => ({
             interrupted: {
-              type: BEGIN_INTERRUPT_EXECUTION,
+              type: InterpreterActions.beginInterruptExecution.type,
               payload: { workspaceLocation }
             }
           })
         })
-        .put(debuggerReset(workspaceLocation))
-        .put(endInterruptExecution(workspaceLocation))
+        .put(InterpreterActions.debuggerReset(workspaceLocation))
+        .put(InterpreterActions.endInterruptExecution(workspaceLocation))
         .call(showWarningMessage, 'Execution aborted', 750)
         .silentRun()
         .then(result => {
@@ -1070,7 +1031,7 @@ describe('evalCode', () => {
   describe('on paused', () => {
     test('puts endDebuggerPause and calls showWarningMessage', () => {
       return expectSaga(
-        evalCode,
+        evalCodeSaga,
         files,
         codeFilePath,
         context,
@@ -1082,13 +1043,44 @@ describe('evalCode', () => {
         .provide({
           race: () => ({
             paused: {
-              type: BEGIN_DEBUG_PAUSE,
+              type: InterpreterActions.beginDebuggerPause.type,
               payload: { workspaceLocation }
             }
           })
         })
-        .put(endDebuggerPause(workspaceLocation))
+        .put(InterpreterActions.endDebuggerPause(workspaceLocation))
         .call(showWarningMessage, 'Execution paused', 750)
+        .silentRun();
+    });
+  });
+
+  describe('special error', () => {
+    test('on throwing of special error, calls evalInterpreterSuccess ', async () => {
+      context.errors = [
+        { type: ErrorType.RUNTIME, error: 'source_academy_interrupt' } as unknown as SourceError
+      ];
+      return expectSaga(
+        evalCodeSaga,
+        files,
+        codeFilePath,
+        context,
+        execTime,
+        workspaceLocation,
+        actionType
+      )
+        .withState(state)
+        .provide([
+          [
+            call(runFilesInContext, files, codeFilePath, context, options),
+            { status: 'error', value }
+          ]
+        ])
+        .put(
+          InterpreterActions.evalInterpreterSuccess(
+            'Program has been interrupted by module',
+            workspaceLocation
+          )
+        )
         .silentRun();
     });
   });
@@ -1126,9 +1118,9 @@ describe('evalTestCode', () => {
       return expectSaga(evalTestCode, code, context, execTime, workspaceLocation, index, type)
         .withState(state)
         .provide([[call(runInContext, code, context, options), { status: 'finished', value }]])
-        .put(evalInterpreterSuccess(value, workspaceLocation))
-        .put(evalTestcaseSuccess(value, workspaceLocation, index))
-        .not.put(clearReplOutputLast(workspaceLocation))
+        .put(InterpreterActions.evalInterpreterSuccess(value, workspaceLocation))
+        .put(InterpreterActions.evalTestcaseSuccess(value, workspaceLocation, index))
+        .not.put(WorkspaceActions.clearReplOutputLast(workspaceLocation))
         .silentRun();
     });
 
@@ -1138,9 +1130,9 @@ describe('evalTestCode', () => {
       return expectSaga(evalTestCode, code, context, execTime, workspaceLocation, index, type)
         .withState(state)
         .provide([[call(runInContext, code, context, options), { status: 'finished', value }]])
-        .put(evalInterpreterSuccess(value, workspaceLocation))
-        .put(evalTestcaseSuccess(value, workspaceLocation, index))
-        .put(clearReplOutputLast(workspaceLocation))
+        .put(InterpreterActions.evalInterpreterSuccess(value, workspaceLocation))
+        .put(InterpreterActions.evalTestcaseSuccess(value, workspaceLocation, index))
+        .put(WorkspaceActions.clearReplOutputLast(workspaceLocation))
         .silentRun();
     });
 
@@ -1148,9 +1140,9 @@ describe('evalTestCode', () => {
       return expectSaga(evalTestCode, code, context, execTime, workspaceLocation, index, type)
         .withState(state)
         .provide([[call(runInContext, code, context, options), { status: 'error' }]])
-        .put(evalInterpreterError(context.errors, workspaceLocation))
-        .put(evalTestcaseFailure(context.errors, workspaceLocation, index))
-        .not.put(clearReplOutputLast(workspaceLocation))
+        .put(InterpreterActions.evalInterpreterError(context.errors, workspaceLocation))
+        .put(InterpreterActions.evalTestcaseFailure(context.errors, workspaceLocation, index))
+        .not.put(WorkspaceActions.clearReplOutputLast(workspaceLocation))
         .silentRun();
     });
 
@@ -1160,9 +1152,9 @@ describe('evalTestCode', () => {
       return expectSaga(evalTestCode, code, context, execTime, workspaceLocation, index, type)
         .withState(state)
         .provide([[call(runInContext, code, context, options), { status: 'error' }]])
-        .put(evalInterpreterError(context.errors, workspaceLocation))
-        .put(evalTestcaseFailure(context.errors, workspaceLocation, index))
-        .put(clearReplOutputLast(workspaceLocation))
+        .put(InterpreterActions.evalInterpreterError(context.errors, workspaceLocation))
+        .put(InterpreterActions.evalTestcaseFailure(context.errors, workspaceLocation, index))
+        .put(WorkspaceActions.clearReplOutputLast(workspaceLocation))
         .silentRun();
     });
   });
@@ -1182,12 +1174,12 @@ describe('evalTestCode', () => {
         .provide({
           race: () => ({
             interrupted: {
-              type: BEGIN_INTERRUPT_EXECUTION,
+              type: InterpreterActions.beginInterruptExecution.type,
               payload: { workspaceLocation }
             }
           })
         })
-        .put(endInterruptExecution(workspaceLocation))
+        .put(InterpreterActions.endInterruptExecution(workspaceLocation))
         .call(showWarningMessage, `Execution of testcase ${index} aborted`, 750)
         .silentRun()
         .then(() => {
@@ -1223,11 +1215,11 @@ describe('NAV_DECLARATION', () => {
       expectSaga(workspaceSaga)
         .withState(state)
         .dispatch({
-          type: NAV_DECLARATION,
+          type: WorkspaceActions.navigateToDeclaration.type,
           payload: { workspaceLocation, cursorPosition: loc }
         })
         // TODO: Hardcoded to make use of the first editor tab. Rewrite after editor tabs are added.
-        .put(moveCursor(workspaceLocation, 0, resultLoc))
+        .put(WorkspaceActions.moveCursor(workspaceLocation, 0, resultLoc))
         .silentRun()
     );
   });
@@ -1239,11 +1231,11 @@ describe('NAV_DECLARATION', () => {
       expectSaga(workspaceSaga)
         .withState(state)
         .dispatch({
-          type: NAV_DECLARATION,
+          type: WorkspaceActions.navigateToDeclaration.type,
           payload: { workspaceLocation, cursorPosition: pos }
         })
         // TODO: Hardcoded to make use of the first editor tab. Rewrite after editor tabs are added.
-        .not.put(moveCursor(workspaceLocation, 0, resultPos))
+        .not.put(WorkspaceActions.moveCursor(workspaceLocation, 0, resultPos))
         .silentRun()
     );
   });
@@ -1255,11 +1247,11 @@ describe('NAV_DECLARATION', () => {
       expectSaga(workspaceSaga)
         .withState(state)
         .dispatch({
-          type: NAV_DECLARATION,
+          type: WorkspaceActions.navigateToDeclaration.type,
           payload: { workspaceLocation, cursorPosition: pos }
         })
         // TODO: Hardcoded to make use of the first editor tab. Rewrite after editor tabs are added.
-        .not.put(moveCursor(workspaceLocation, 0, resultPos))
+        .not.put(WorkspaceActions.moveCursor(workspaceLocation, 0, resultPos))
         .silentRun()
     );
   });
@@ -1281,11 +1273,11 @@ describe('EVAL_EDITOR_AND_TESTCASES', () => {
 
     return expectSaga(workspaceSaga)
       .withState(state)
-      .call.fn(evalEditor)
+      .call.fn(evalEditorSaga)
       .not.call.fn(showSuccessMessage)
       .not.call.fn(runTestCase)
       .dispatch({
-        type: EVAL_EDITOR_AND_TESTCASES,
+        type: WorkspaceActions.runAllTestcases.type,
         payload: { workspaceLocation }
       })
       .silentRun();
@@ -1299,11 +1291,11 @@ describe('EVAL_EDITOR_AND_TESTCASES', () => {
     return expectSaga(workspaceSaga)
       .withState(state)
       .dispatch({
-        type: EVAL_EDITOR_AND_TESTCASES,
+        type: WorkspaceActions.runAllTestcases.type,
         payload: { workspaceLocation }
       })
       .call(showSuccessMessage, 'Running all testcases!', 2000)
-      .call.fn(evalEditor)
+      .call.fn(evalEditorSaga)
       .call(runTestCase, workspaceLocation, 0)
       .call(runTestCase, workspaceLocation, 1)
       .call(runTestCase, workspaceLocation, 2)
@@ -1325,11 +1317,11 @@ describe('EVAL_EDITOR_AND_TESTCASES', () => {
     return expectSaga(workspaceSaga)
       .withState(state)
       .dispatch({
-        type: EVAL_EDITOR_AND_TESTCASES,
+        type: WorkspaceActions.runAllTestcases.type,
         payload: { workspaceLocation }
       })
       .call(showSuccessMessage, 'Running all testcases!', 2000)
-      .call.fn(evalEditor)
+      .call.fn(evalEditorSaga)
       .call(runTestCase, workspaceLocation, 0)
       .not.call(runTestCase, workspaceLocation, 1)
       .not.call(runTestCase, workspaceLocation, 2)

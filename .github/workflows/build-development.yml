@@ -11,11 +11,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install dependencies (apt)
-        run: |
-          sudo apt-get update && \
-          sudo apt-get install -y --no-install-recommends \
-          libxi-dev libgl1-mesa-dev
       - name: Setup node
         uses: actions/setup-node@v4
         with:
@@ -23,7 +18,7 @@ jobs:
           cache: yarn
       - name: Setup Sentry CLI
         run: |
-          curl -sL https://sentry.io/get-cli/ | INSTALL_DIR=. bash
+          curl -sL https://sentry.io/get-cli/ | SENTRY_CLI_VERSION=2.31.0 INSTALL_DIR=. bash
       - id: get-time
         run: echo "time=$(date -Iseconds)" >> $GITHUB_OUTPUT
       - name: yarn install and build
@@ -38,7 +33,6 @@ jobs:
           REACT_APP_GOOGLE_API_KEY: ${{ secrets.REACT_APP_GOOGLE_API_KEY }}
           REACT_APP_GOOGLE_APP_ID: ${{ secrets.REACT_APP_GOOGLE_APP_ID }}
           REACT_APP_PLAYGROUND_ONLY: 'TRUE'
-          REACT_APP_ENABLE_GITHUB_ASSESSMENTS: 'TRUE'
           REACT_APP_VERSION: ${{ format('{0}-{1}', github.sha, steps.get-time.outputs.time) }}
           REACT_APP_ENVIRONMENT: 'pages'
           REACT_APP_MODULE_BACKEND_URL: https://source-academy.github.io/modules

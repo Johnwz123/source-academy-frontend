@@ -22,7 +22,7 @@ type OwnProps = {
   workspaceLocation: WorkspaceLocation;
 };
 
-const SideContentTestcaseCard: React.FunctionComponent<SideContentTestcaseCardProps> = props => {
+const SideContentTestcaseCard: React.FC<SideContentTestcaseCardProps> = props => {
   const { index, testcase, handleTestcaseEval } = props;
 
   const extraClasses = React.useMemo(() => {
@@ -76,8 +76,8 @@ const SideContentTestcaseCard: React.FunctionComponent<SideContentTestcaseCardPr
               {testcase.errors
                 ? parseError(testcase.errors)
                 : testcase.result !== undefined
-                ? stringify(testcase.result)
-                : 'No Answer'}
+                  ? stringify(testcase.result)
+                  : 'No Answer'}
             </Pre>
           </>
         )}

@@ -2,7 +2,9 @@ import { Position } from '@blueprintjs/core';
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import {
+  cLanguages,
   getLanguageConfig,
+  javaLanguages,
   pyLanguages,
   SALanguage,
   schemeLanguages,
@@ -12,7 +14,7 @@ import {
 } from 'src/commons/application/ApplicationTypes';
 import SimpleDropdown from 'src/commons/SimpleDropdown';
 import { useTypedSelector } from 'src/commons/utils/Hooks';
-import { chapterSelect } from 'src/commons/workspace/WorkspaceActions';
+import WorkspaceActions from 'src/commons/workspace/WorkspaceActions';
 import { playgroundConfigLanguage } from 'src/features/playground/PlaygroundActions';
 
 // TODO: Hardcoded to use the first sublanguage for each language
@@ -21,7 +23,9 @@ const defaultSublanguages: {
 } = {
   [SupportedLanguage.JAVASCRIPT]: sourceLanguages[0],
   [SupportedLanguage.PYTHON]: pyLanguages[0],
-  [SupportedLanguage.SCHEME]: schemeLanguages[0]
+  [SupportedLanguage.SCHEME]: schemeLanguages[0],
+  [SupportedLanguage.JAVA]: javaLanguages[0],
+  [SupportedLanguage.C]: cLanguages[0]
 };
 
 const NavigationBarLangSelectButton = () => {
@@ -31,7 +35,7 @@ const NavigationBarLangSelectButton = () => {
   const selectLang = (language: SupportedLanguage) => {
     const { chapter, variant } = defaultSublanguages[language];
     dispatch(playgroundConfigLanguage(getLanguageConfig(chapter, variant)));
-    dispatch(chapterSelect(chapter, variant, 'playground'));
+    dispatch(WorkspaceActions.chapterSelect(chapter, variant, 'playground'));
     setIsOpen(false);
   };
 

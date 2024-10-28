@@ -17,6 +17,7 @@ import { isEqual } from 'lodash';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router';
+import { showSimpleConfirmDialog } from 'src/commons/utils/DialogHelper';
 import { onClickProgress } from 'src/features/assessments/AssessmentUtils';
 import { mobileOnlyTabIds } from 'src/pages/playground/PlaygroundTabs';
 
@@ -27,7 +28,7 @@ import {
   KeyboardCommand,
   SelectionRange
 } from '../../features/sourceRecorder/SourceRecorderTypes';
-import { fetchAssessment, submitAnswer } from '../application/actions/SessionActions';
+import SessionActions from '../application/actions/SessionActions';
 import { defaultWorkspaceManager } from '../application/ApplicationTypes';
 import {
   AssessmentConfiguration,
@@ -72,31 +73,10 @@ import { useResponsive, useTypedSelector } from '../utils/Hooks';
 import { assessmentTypeLink } from '../utils/ParamParseHelper';
 import { assertType } from '../utils/TypeHelper';
 import Workspace, { WorkspaceProps } from '../workspace/Workspace';
-import {
-  beginClearContext,
-  browseReplHistoryDown,
-  browseReplHistoryUp,
-  changeExecTime,
-  clearReplOutput,
-  disableTokenCounter,
-  enableTokenCounter,
-  evalEditor,
-  evalRepl,
-  evalTestcase,
-  navigateToDeclaration,
-  promptAutocomplete,
-  removeEditorTab,
-  resetWorkspace,
-  runAllTestcases,
-  setEditorBreakpoint,
-  updateActiveEditorTabIndex,
-  updateCurrentAssessmentId,
-  updateEditorValue,
-  updateHasUnsavedChanges,
-  updateReplValue
-} from '../workspace/WorkspaceActions';
+import WorkspaceActions from '../workspace/WorkspaceActions';
 import { WorkspaceLocation, WorkspaceState } from '../workspace/WorkspaceTypes';
 import AssessmentWorkspaceGradingResult from './AssessmentWorkspaceGradingResult';
+
 export type AssessmentWorkspaceProps = {
   assessmentId: number;
   needsPassword: boolean;
@@ -110,11 +90,17 @@ const workspaceLocation: WorkspaceLocation = 'assessment';
 
 const AssessmentWorkspace: React.FC<AssessmentWorkspaceProps> = props => {
   const [showOverlay, setShowOverlay] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showResetTemplateOverlay, setShowResetTemplateOverlay] = useState(false);
   const [sessionId, setSessionId] = useState('');
   const { isMobileBreakpoint } = useResponsive();
 
-  const assessment = useTypedSelector(state => state.session.assessments.get(props.assessmentId));
+  const assessment = useTypedSelector(state => state.session.assessments[props.assessmentId]);
+  const assessmentOverviews = useTypedSelector(state => state.session.assessmentOverviews);
+  const teamFormationOverview = useTypedSelector(state => state.session.teamFormationOverview);
+  const assessmentOverview = assessmentOverviews?.find(assessmentOverview => {
+    return assessmentOverview.id === assessment?.id;
+  });
   const { selectedTab, setSelectedTab } = useSideContent(
     workspaceLocation,
     assessment?.questions[props.questionId].grader !== undefined
@@ -141,6 +127,7 @@ const AssessmentWorkspace: React.FC<AssessmentWorkspaceProps> = props => {
 
   const dispatch = useDispatch();
   const {
+    handleTeamOverviewFetch,
     handleTestcaseEval,
     handleClearContext,
     handleChangeExecTime,
@@ -153,41 +140,58 @@ const AssessmentWorkspace: React.FC<AssessmentWorkspaceProps> = props => {
     handleEditorUpdateBreakpoints,
     handleReplEval,
     handleSave,
+    handleCheckLastModifiedAt,
     handleUpdateHasUnsavedChanges,
     handleEnableTokenCounter,
     handleDisableTokenCounter
   } = useMemo(() => {
     return {
-      handleTestcaseEval: (id: number) => dispatch(evalTestcase(workspaceLocation, id)),
+      handleTeamOverviewFetch: (assessmentId: number) =>
+        dispatch(SessionActions.fetchTeamFormationOverview(assessmentId)),
+      handleTestcaseEval: (id: number) =>
+        dispatch(WorkspaceActions.evalTestcase(workspaceLocation, id)),
       handleClearContext: (library: Library, shouldInitLibrary: boolean) =>
-        dispatch(beginClearContext(workspaceLocation, library, shouldInitLibrary)),
+        dispatch(WorkspaceActions.beginClearContext(workspaceLocation, library, shouldInitLibrary)),
       handleChangeExecTime: (execTimeMs: number) =>
-        dispatch(changeExecTime(execTimeMs, workspaceLocation)),
+        dispatch(WorkspaceActions.changeExecTime(execTimeMs, workspaceLocation)),
       handleUpdateCurrentAssessmentId: (assessmentId: number, questionId: number) =>
-        dispatch(updateCurrentAssessmentId(assessmentId, questionId)),
+        dispatch(WorkspaceActions.updateCurrentAssessmentId(assessmentId, questionId)),
       handleResetWorkspace: (options: Partial<WorkspaceState>) =>
-        dispatch(resetWorkspace(workspaceLocation, options)),
-      handleRunAllTestcases: () => dispatch(runAllTestcases(workspaceLocation)),
-      handleEditorEval: () => dispatch(evalEditor(workspaceLocation)),
+        dispatch(WorkspaceActions.resetWorkspace(workspaceLocation, options)),
+      handleRunAllTestcases: () => dispatch(WorkspaceActions.runAllTestcases(workspaceLocation)),
+      handleEditorEval: () => dispatch(WorkspaceActions.evalEditor(workspaceLocation)),
       handleAssessmentFetch: (assessmentId: number, assessmentPassword?: string) =>
-        dispatch(fetchAssessment(assessmentId, assessmentPassword)),
+        dispatch(SessionActions.fetchAssessment(assessmentId, assessmentPassword)),
       handleEditorValueChange: (editorTabIndex: number, newEditorValue: string) =>
-        dispatch(updateEditorValue(workspaceLocation, editorTabIndex, newEditorValue)),
+        dispatch(
+          WorkspaceActions.updateEditorValue(workspaceLocation, editorTabIndex, newEditorValue)
+        ),
       handleEditorUpdateBreakpoints: (editorTabIndex: number, newBreakpoints: string[]) =>
-        dispatch(setEditorBreakpoint(workspaceLocation, editorTabIndex, newBreakpoints)),
-      handleReplEval: () => dispatch(evalRepl(workspaceLocation)),
+        dispatch(
+          WorkspaceActions.setEditorBreakpoint(workspaceLocation, editorTabIndex, newBreakpoints)
+        ),
+      handleReplEval: () => dispatch(WorkspaceActions.evalRepl(workspaceLocation)),
+      handleCheckLastModifiedAt: (id: number, lastModifiedAt: string, saveAnswer: Function) =>
+        dispatch(SessionActions.checkAnswerLastModifiedAt(id, lastModifiedAt, saveAnswer)),
       handleSave: (id: number, answer: number | string | ContestEntry[]) =>
-        dispatch(submitAnswer(id, answer)),
+        dispatch(SessionActions.submitAnswer(id, answer)),
       handleUpdateHasUnsavedChanges: (hasUnsavedChanges: boolean) =>
-        dispatch(updateHasUnsavedChanges(workspaceLocation, hasUnsavedChanges)),
-      handleEnableTokenCounter: () => dispatch(enableTokenCounter(workspaceLocation)),
-      handleDisableTokenCounter: () => dispatch(disableTokenCounter(workspaceLocation))
+        dispatch(WorkspaceActions.updateHasUnsavedChanges(workspaceLocation, hasUnsavedChanges)),
+      handleEnableTokenCounter: () =>
+        dispatch(WorkspaceActions.enableTokenCounter(workspaceLocation)),
+      handleDisableTokenCounter: () =>
+        dispatch(WorkspaceActions.disableTokenCounter(workspaceLocation))
     };
   }, [dispatch]);
 
   useEffect(() => {
     // TODO: Hardcoded to make use of the first editor tab. Refactoring is needed for this workspace to enable Folder mode.
     handleEditorValueChange(0, '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    handleTeamOverviewFetch(props.assessmentId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -250,16 +254,12 @@ const AssessmentWorkspace: React.FC<AssessmentWorkspaceProps> = props => {
    * Handles toggling enabling and disabling token counter depending on assessment properties
    */
   useEffect(() => {
-    if (props.assessmentConfiguration.hasTokenCounter) {
+    if (assessment?.hasTokenCounter) {
       handleEnableTokenCounter();
     } else {
       handleDisableTokenCounter();
     }
-  }, [
-    props.assessmentConfiguration.hasTokenCounter,
-    handleEnableTokenCounter,
-    handleDisableTokenCounter
-  ]);
+  }, [assessment?.hasTokenCounter, handleEnableTokenCounter, handleDisableTokenCounter]);
 
   /**
    * Handles toggling of relevant SideContentTabs when mobile breakpoint it hit
@@ -430,6 +430,8 @@ const AssessmentWorkspace: React.FC<AssessmentWorkspaceProps> = props => {
   ) => {
     const question = assessment!.questions[questionId];
     const isGraded = question.grader !== undefined;
+    const isTeamAssessment =
+      assessmentOverview !== undefined ? assessmentOverview.maxTeamSize > 1 : false;
     const isContestVoting = question?.type === QuestionTypes.voting;
     const handleContestEntryClick = (_submissionId: number, answer: string) => {
       // TODO: Hardcoded to make use of the first editor tab. Refactoring is needed for this workspace to enable Folder mode.
@@ -444,6 +446,30 @@ const AssessmentWorkspace: React.FC<AssessmentWorkspaceProps> = props => {
         id: SideContentType.questionOverview
       }
     ];
+
+    if (isTeamAssessment) {
+      tabs.push({
+        label: `Team`,
+        iconName: IconNames.PEOPLE,
+        body: (
+          <div>
+            {teamFormationOverview === undefined ? (
+              'You are not assigned to any team!'
+            ) : (
+              <div>
+                Your teammates for this assessment:{' '}
+                {teamFormationOverview.studentNames.map((name: string, index: number) => (
+                  <span key={index}>
+                    {index > 0 ? ', ' : ''}
+                    {name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      });
+    }
 
     if (isContestVoting) {
       tabs.push(
@@ -596,8 +622,48 @@ const AssessmentWorkspace: React.FC<AssessmentWorkspaceProps> = props => {
     };
     const onClickReturn = () => navigate(listingPath);
 
-    // TODO: Hardcoded to make use of the first editor tab. Rewrite after editor tabs are added.
-    const onClickSave = () => handleSave(question.id, editorTabs[0].value);
+    const onClickSave = () => {
+      if (isSaving) return;
+      setIsSaving(true);
+      checkLastModified();
+      setTimeout(() => {
+        setIsSaving(false);
+      }, 3000);
+    };
+
+    const checkLastModified = () => {
+      const isTeamAssessment: boolean = assessmentOverview?.maxTeamSize !== 0;
+      if (isTeamAssessment && question.type === QuestionTypes.programming) {
+        handleCheckLastModifiedAt(question.id, question.lastModifiedAt, saveClick);
+      }
+    };
+
+    const saveClick = async (modified: boolean) => {
+      const isTeamAssessment: boolean = assessmentOverview?.maxTeamSize !== 0;
+      if (isTeamAssessment && question.type === QuestionTypes.programming) {
+        if (modified) {
+          const confirm = await showSimpleConfirmDialog({
+            contents: (
+              <>
+                <p>Save answer?</p>
+                <p>Note: The changes made by your teammate will be lost.</p>
+              </>
+            ),
+            positiveIntent: 'danger',
+            positiveLabel: 'Save'
+          });
+
+          if (!confirm) {
+            return;
+          }
+        }
+      }
+      // TODO: Hardcoded to make use of the first editor tab. Rewrite after editor tabs are added.
+      handleSave(question.id, editorTabs[0].value);
+      setTimeout(() => {
+        handleAssessmentFetch(props.assessmentId);
+      }, 1000);
+    };
 
     const onClickResetTemplate = () => {
       setShowResetTemplateOverlay(true);
@@ -649,10 +715,20 @@ const AssessmentWorkspace: React.FC<AssessmentWorkspaceProps> = props => {
       />
     );
 
+    // Define the function to check if the Save button should be disabled
+    const shouldDisableSaveButton = (): boolean | undefined => {
+      const isIndividualAssessment: boolean = assessmentOverview?.maxTeamSize === 1;
+      if (isIndividualAssessment) {
+        return false;
+      }
+      return !teamFormationOverview;
+    };
+
     const saveButton =
       props.canSave && question.type === QuestionTypes.programming ? (
         <ControlButtonSaveButton
           hasUnsavedChanges={hasUnsavedChanges}
+          isDisabled={shouldDisableSaveButton()}
           onClickSave={onClickSave}
           key="save"
         />
@@ -709,7 +785,7 @@ const AssessmentWorkspace: React.FC<AssessmentWorkspaceProps> = props => {
   const replButtons = useMemo(() => {
     const clearButton = (
       <ControlBarClearButton
-        handleReplOutputClear={() => dispatch(clearReplOutput(workspaceLocation))}
+        handleReplOutputClear={() => dispatch(WorkspaceActions.clearReplOutput(workspaceLocation))}
         key="clear_repl"
       />
     );
@@ -723,22 +799,26 @@ const AssessmentWorkspace: React.FC<AssessmentWorkspaceProps> = props => {
   const editorContainerHandlers = useMemo(() => {
     return {
       setActiveEditorTabIndex: (activeEditorTabIndex: number | null) =>
-        dispatch(updateActiveEditorTabIndex(workspaceLocation, activeEditorTabIndex)),
+        dispatch(
+          WorkspaceActions.updateActiveEditorTabIndex(workspaceLocation, activeEditorTabIndex)
+        ),
       removeEditorTabByIndex: (editorTabIndex: number) =>
-        dispatch(removeEditorTab(workspaceLocation, editorTabIndex)),
+        dispatch(WorkspaceActions.removeEditorTab(workspaceLocation, editorTabIndex)),
       handleDeclarationNavigate: (cursorPosition: Position) =>
-        dispatch(navigateToDeclaration(workspaceLocation, cursorPosition)),
+        dispatch(WorkspaceActions.navigateToDeclaration(workspaceLocation, cursorPosition)),
       handlePromptAutocomplete: (row: number, col: number, callback: any) =>
-        dispatch(promptAutocomplete(workspaceLocation, row, col, callback))
+        dispatch(WorkspaceActions.promptAutocomplete(workspaceLocation, row, col, callback))
     };
   }, [dispatch]);
 
   const replHandlers = useMemo(() => {
     return {
-      handleBrowseHistoryDown: () => dispatch(browseReplHistoryDown(workspaceLocation)),
-      handleBrowseHistoryUp: () => dispatch(browseReplHistoryUp(workspaceLocation)),
+      handleBrowseHistoryDown: () =>
+        dispatch(WorkspaceActions.browseReplHistoryDown(workspaceLocation)),
+      handleBrowseHistoryUp: () =>
+        dispatch(WorkspaceActions.browseReplHistoryUp(workspaceLocation)),
       handleReplValueChange: (newValue: string) =>
-        dispatch(updateReplValue(newValue, workspaceLocation))
+        dispatch(WorkspaceActions.updateReplValue(newValue, workspaceLocation))
     };
   }, [dispatch]);
 
@@ -828,6 +908,7 @@ const AssessmentWorkspace: React.FC<AssessmentWorkspaceProps> = props => {
           removeEditorTabByIndex: editorContainerHandlers.removeEditorTabByIndex,
           editorTabs: editorTabs.map(convertEditorTabStateToProps),
           editorSessionId: '',
+          sessionDetails: null,
           sourceChapter: question.library.chapter || Chapter.SOURCE_4,
           sourceVariant: question.library.variant ?? Variant.DEFAULT,
           externalLibraryName: question.library.external.name || 'NONE',

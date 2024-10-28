@@ -1,9 +1,9 @@
 import { FocusStyleManager } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
+import { useMediaQuery } from '@mantine/hooks';
 import { Ace } from 'ace-builds';
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { DraggableEvent } from 'react-draggable';
-import { useMediaQuery } from 'react-responsive';
 
 import ControlBar from '../controlBar/ControlBar';
 import EditorContainer, { EditorContainerProps } from '../editor/EditorContainer';
@@ -16,9 +16,7 @@ import DraggableRepl from './DraggableRepl';
 import MobileKeyboard from './MobileKeyboard';
 import MobileSideContent, { MobileSideContentProps } from './mobileSideContent/MobileSideContent';
 
-export type MobileWorkspaceProps = StateProps;
-
-type StateProps = {
+export type MobileWorkspaceProps = {
   editorContainerProps?: EditorContainerProps; // Either editorProps or mcqProps must be provided
   hasUnsavedChanges?: boolean; // Not used in Playground
   mcqProps?: McqChooserProps; // Not used in Playground
@@ -31,17 +29,17 @@ type StateProps = {
 
 const MobileWorkspace: React.FC<MobileWorkspaceProps> = props => {
   const isAndroid = /Android/.test(navigator.userAgent);
-  const isPortrait = useMediaQuery({ orientation: 'portrait' });
-  const [draggableReplPosition, setDraggableReplPosition] = React.useState({ x: 0, y: 0 });
+  const isPortrait = useMediaQuery('(orientation: portrait)');
+  const [draggableReplPosition, setDraggableReplPosition] = useState({ x: 0, y: 0 });
 
   // For disabling draggable Repl when in stepper tab
-  const [isDraggableReplDisabled, setIsDraggableReplDisabled] = React.useState(false);
+  const [isDraggableReplDisabled, setIsDraggableReplDisabled] = useState(false);
 
   // Get rid of the focus border on blueprint components
   FocusStyleManager.onlyShowFocusOnTabs();
 
   // Handles the panel height when the mobile top controlbar is rendered in the Assessment Workspace
-  React.useEffect(() => {
+  useEffect(() => {
     if (props.mobileSideContentProps.workspaceLocation === 'assessment') {
       document.documentElement.style.setProperty(
         '--mobile-panel-height',
@@ -61,7 +59,7 @@ const MobileWorkspace: React.FC<MobileWorkspaceProps> = props => {
    * soft keyboard on Android devices. This is due to the viewport height changing when the soft
    * keyboard is up on Android devices. IOS devices are not affected.
    */
-  React.useEffect(() => {
+  useEffect(() => {
     if (isPortrait && isAndroid) {
       document.documentElement.style.setProperty('overflow', 'auto');
       const metaViewport = document.querySelector('meta[name=viewport]');
@@ -85,50 +83,38 @@ const MobileWorkspace: React.FC<MobileWorkspaceProps> = props => {
     };
   }, [isPortrait, isAndroid]);
 
-  const [targetKeyboardInput, setTargetKeyboardInput] = React.useState<Ace.Editor | null>(null);
+  const [targetKeyboardInput, setTargetKeyboardInput] = useState<Ace.Editor | null>(null);
 
   const clearTargetKeyboardInput = () => setTargetKeyboardInput(null);
 
   const enableMobileKeyboardForEditor = (props: EditorContainerProps): EditorContainerProps => {
-    const onFocus = (event: any, editor?: Ace.Editor) => {
-      if (props.onFocus) {
-        props.onFocus(event, editor);
-      }
-      if (!editor) {
-        return;
-      }
-      setTargetKeyboardInput(editor);
-    };
-    const onBlur = (event: any, editor?: Ace.Editor) => {
-      if (props.onBlur) {
-        props.onBlur(event, editor);
-      }
-      clearTargetKeyboardInput();
-    };
     return {
       ...props,
-      onFocus,
-      onBlur
+      onFocus: (event, editor?) => {
+        props.onFocus?.(event, editor);
+        if (!editor) {
+          return;
+        }
+        setTargetKeyboardInput(editor);
+      },
+      onBlur: (event, editor?) => {
+        props.onBlur?.(event, editor);
+        clearTargetKeyboardInput();
+      }
     };
   };
 
   const enableMobileKeyboardForRepl = (props: ReplProps): ReplProps => {
-    const onFocus = (editor: Ace.Editor) => {
-      if (props.onFocus) {
-        props.onFocus(editor);
-      }
-      setTargetKeyboardInput(editor);
-    };
-    const onBlur = () => {
-      if (props.onBlur) {
-        props.onBlur();
-      }
-      clearTargetKeyboardInput();
-    };
     return {
       ...props,
-      onFocus,
-      onBlur
+      onFocus: editor => {
+        props.onFocus?.(editor);
+        setTargetKeyboardInput(editor);
+      },
+      onBlur: () => {
+        props.onBlur?.();
+        clearTargetKeyboardInput();
+      }
     };
   };
 
@@ -186,13 +172,11 @@ const MobileWorkspace: React.FC<MobileWorkspaceProps> = props => {
   };
 
   const handleEditorEval = props.editorContainerProps?.handleEditorEval;
-  const handleTabChangeForRepl = React.useCallback(
+  const handleTabChangeForRepl = useCallback(
     (newTabId: SideContentType, prevTabId: SideContentType) => {
       // Evaluate program upon pressing the run tab.
       if (newTabId === SideContentType.mobileEditorRun) {
-        if (handleEditorEval) {
-          handleEditorEval();
-        }
+        handleEditorEval?.();
       }
 
       // Show the REPL upon pressing the run tab if the previous tab is not listed below.
@@ -200,6 +184,7 @@ const MobileWorkspace: React.FC<MobileWorkspaceProps> = props => {
         newTabId === SideContentType.mobileEditorRun &&
         !(
           prevTabId === SideContentType.substVisualizer ||
+          prevTabId === SideContentType.cseMachine ||
           prevTabId === SideContentType.autograder ||
           prevTabId === SideContentType.testcases
         )
@@ -209,12 +194,14 @@ const MobileWorkspace: React.FC<MobileWorkspaceProps> = props => {
         handleHideRepl();
       }
 
-      // Disable draggable REPL when on the files & stepper tab.
+      // Disable draggable REPL when on the files & stepper & cse tab.
       if (
         newTabId === SideContentType.folder ||
         newTabId === SideContentType.substVisualizer ||
+        newTabId === SideContentType.cseMachine ||
         (prevTabId === SideContentType.substVisualizer &&
-          newTabId === SideContentType.mobileEditorRun)
+          newTabId === SideContentType.mobileEditorRun) ||
+        (prevTabId === SideContentType.cseMachine && newTabId === SideContentType.mobileEditorRun)
       ) {
         setIsDraggableReplDisabled(true);
       } else {
@@ -225,7 +212,7 @@ const MobileWorkspace: React.FC<MobileWorkspaceProps> = props => {
   );
 
   const onChange = props.mobileSideContentProps.onChange;
-  const onSideContentTabChange = React.useCallback(
+  const onSideContentTabChange = useCallback(
     (
       newTabId: SideContentType,
       prevTabId: SideContentType,
@@ -240,27 +227,7 @@ const MobileWorkspace: React.FC<MobileWorkspaceProps> = props => {
   // Convert sidebar tabs with a side content tab ID into side content tabs.
   const sideBarTabs: SideContentTab[] = props.sideBarProps.tabs.filter(tab => tab.id !== undefined);
 
-  const mobileEditorTab: SideContentTab = React.useMemo(
-    () => ({
-      label: 'Editor',
-      iconName: IconNames.EDIT,
-      body: null,
-      id: SideContentType.mobileEditor
-    }),
-    []
-  );
-
-  const mobileRunTab: SideContentTab = React.useMemo(
-    () => ({
-      label: 'Run',
-      iconName: IconNames.PLAY,
-      body: null,
-      id: SideContentType.mobileEditorRun
-    }),
-    []
-  );
-
-  const updatedMobileSideContentProps = React.useCallback(() => {
+  const updatedMobileSideContentProps = useCallback(() => {
     return {
       ...props.mobileSideContentProps,
       onChange: onSideContentTabChange,
@@ -276,17 +243,9 @@ const MobileWorkspace: React.FC<MobileWorkspaceProps> = props => {
         ]
       }
     };
-  }, [
-    onSideContentTabChange,
-    mobileEditorTab,
-    mobileRunTab,
-    props.mobileSideContentProps,
-    sideBarTabs
-  ]);
+  }, [onSideContentTabChange, props.mobileSideContentProps, sideBarTabs]);
 
-  const inAssessmentWorkspace =
-    props.mobileSideContentProps.workspaceLocation === 'assessment' ||
-    props.mobileSideContentProps.workspaceLocation === 'githubAssessment';
+  const inAssessmentWorkspace = props.mobileSideContentProps.workspaceLocation === 'assessment';
 
   return (
     <div className="workspace mobile-workspace">
@@ -319,3 +278,17 @@ const MobileWorkspace: React.FC<MobileWorkspaceProps> = props => {
 };
 
 export default MobileWorkspace;
+
+const mobileEditorTab: SideContentTab = {
+  label: 'Editor',
+  iconName: IconNames.EDIT,
+  body: null,
+  id: SideContentType.mobileEditor
+};
+
+const mobileRunTab: SideContentTab = {
+  label: 'Run',
+  iconName: IconNames.PLAY,
+  body: null,
+  id: SideContentType.mobileEditorRun
+};

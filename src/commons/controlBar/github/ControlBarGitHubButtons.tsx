@@ -1,6 +1,5 @@
-import { ButtonGroup, Classes, Intent } from '@blueprintjs/core';
+import { ButtonGroup, Classes, Intent, Popover, Tooltip } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
-import { Popover2, Tooltip2 } from '@blueprintjs/popover2';
 import { Octokit } from '@octokit/rest';
 import React from 'react';
 import { useResponsive } from 'src/commons/utils/Hooks';
@@ -8,7 +7,7 @@ import { useResponsive } from 'src/commons/utils/Hooks';
 import { GitHubSaveInfo } from '../../../features/github/GitHubTypes';
 import ControlButton from '../../ControlButton';
 
-export type ControlBarGitHubButtonsProps = {
+type Props = {
   isFolderModeEnabled: boolean;
   loggedInAs?: Octokit;
   githubSaveInfo: GitHubSaveInfo;
@@ -26,7 +25,7 @@ export type ControlBarGitHubButtonsProps = {
  *
  * @param props Component properties
  */
-export const ControlBarGitHubButtons: React.FC<ControlBarGitHubButtonsProps> = props => {
+export const ControlBarGitHubButtons: React.FC<Props> = props => {
   const { isMobileBreakpoint } = useResponsive();
 
   const filePath = props.githubSaveInfo.filePath || '';
@@ -90,8 +89,8 @@ export const ControlBarGitHubButtons: React.FC<ControlBarGitHubButtonsProps> = p
     : undefined;
 
   return (
-    <Tooltip2 content={tooltipContent} disabled={tooltipContent === undefined}>
-      <Popover2
+    <Tooltip content={tooltipContent} disabled={tooltipContent === undefined}>
+      <Popover
         autoFocus={false}
         content={
           <div>
@@ -107,7 +106,7 @@ export const ControlBarGitHubButtons: React.FC<ControlBarGitHubButtonsProps> = p
         disabled={props.isFolderModeEnabled}
       >
         {mainButton}
-      </Popover2>
-    </Tooltip2>
+      </Popover>
+    </Tooltip>
   );
 };

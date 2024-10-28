@@ -1,21 +1,16 @@
 import { Switch } from '@blueprintjs/core';
 import React from 'react';
+import { AssessmentConfiguration } from 'src/commons/assessment/AssessmentTypes';
 import { KeysOfType } from 'src/commons/utils/TypeHelper';
 
-type BooleanCellProps = OwnProps;
-
-interface dataProps {
-  [key: string]: boolean;
-}
-
-type OwnProps = {
-  data: dataProps;
-  field: KeysOfType<dataProps, boolean>;
+type Props = {
+  data: AssessmentConfiguration;
+  field: KeysOfType<AssessmentConfiguration, boolean>;
   rowIndex: number;
   setStateHandler: (index: number, value: boolean) => void;
 };
 
-const BooleanCell: React.FC<BooleanCellProps> = props => {
+const BooleanCell: React.FC<Props> = props => {
   const { data } = props;
   const checked = data[props.field];
 

@@ -1,24 +1,39 @@
 /* eslint-disable simple-import-sort/imports */
-import { Ace, require as acequire, createEditSession } from 'ace-builds';
+
+// Next line necessary to prevent "ReferenceError: ace is not defined" error.
+// See https://github.com/securingsincity/react-ace/issues/1233 (although there is no explanation).
+import 'ace-builds/src-noconflict/ace';
 import 'ace-builds/src-noconflict/ext-language_tools';
 import 'ace-builds/src-noconflict/ext-searchbox';
+import 'ace-builds/src-noconflict/ext-settings_menu';
 import 'js-slang/dist/editors/ace/theme/source';
 
+/**
+ * ace-builds/webpack-resolver is causing some issues in the testing environment.
+ * Without it, we have to manually import the following keybindings to ensure they are packaged
+ * together with the editor during lazy loading.
+ *
+ * Supersedes changes from: https://github.com/source-academy/frontend/issues/2543
+ */
+import 'ace-builds/src-noconflict/keybinding-emacs';
+import 'ace-builds/src-noconflict/keybinding-vim';
+
+import { Card } from '@blueprintjs/core';
 import * as AceBuilds from 'ace-builds';
+import { Ace, require as acequire, createEditSession } from 'ace-builds';
 import { Chapter, Variant } from 'js-slang/dist/types';
 import React from 'react';
 import AceEditor, { IAceEditorProps, IEditorProps } from 'react-ace';
-import { HotKeys } from 'react-hotkeys';
-
-import { keyBindings, KeyFunction } from './EditorHotkeys';
+import { IAceEditor } from 'react-ace/lib/types';
+import { EditorBinding } from '../WorkspaceSettingsContext';
+import { getModeString, selectMode } from '../utils/AceHelper';
+import { objectEntries } from '../utils/TypeHelper';
+import { KeyFunction, keyBindings } from './EditorHotkeys';
 import { AceMouseEvent, HighlightedLines, Position } from './EditorTypes';
 
 // =============== Hooks ===============
 // TODO: Should further refactor into EditorBase + different variants.
 // Ideally, hooks should be specified by the parent component instead.
-import { IAceEditor } from 'react-ace/lib/types';
-import { getModeString, selectMode } from '../utils/AceHelper';
-import { EditorBinding } from '../WorkspaceSettingsContext';
 import useHighlighting from './UseHighlighting';
 import useNavigation from './UseNavigation';
 import useRefactor from './UseRefactor';
@@ -47,6 +62,7 @@ type DispatchProps = {
 
 type EditorStateProps = {
   editorSessionId: string;
+  sessionDetails: { docId: string; readOnly: boolean } | null;
   isEditorAutorun: boolean;
   sourceChapter?: Chapter;
   externalLibraryName?: string;
@@ -323,11 +339,6 @@ const moveCursor = (editor: AceEditor['editor'], position: Position) => {
   editor.renderer.scrollCursorIntoView(position, 0.5);
 };
 
-/* Override handler, so does not trigger when focus is in editor */
-const handlers = {
-  goGreen: () => {}
-};
-
 const EditorBase = React.memo((props: EditorProps & LocalStateProps) => {
   const reactAceRef: React.MutableRefObject<AceEditor | null> = React.useRef(null);
   const [filePath, setFilePath] = React.useState<string | undefined>(undefined);
@@ -433,10 +444,16 @@ const EditorBase = React.memo((props: EditorProps & LocalStateProps) => {
     session.on('changeAnnotation' as any, makeHandleAnnotationChange(session));
 
     // Start autocompletion
-    acequire('ace/ext/language_tools').setCompleters([
-      makeCompleter((...args) => handlePromptAutocompleteRef.current(...args))
-    ]);
-  }, [editor, props.editorTabIndex]);
+    if (props.sourceChapter === Chapter.FULL_C || props.sourceChapter === Chapter.FULL_JAVA) {
+      // for C, Java language, use the default autocomplete provided by ace editor
+      const { textCompleter, keyWordCompleter, setCompleters } = acequire('ace/ext/language_tools');
+      setCompleters([textCompleter, keyWordCompleter]);
+    } else {
+      acequire('ace/ext/language_tools').setCompleters([
+        makeCompleter((...args) => handlePromptAutocompleteRef.current(...args))
+      ]);
+    }
+  }, [editor, props.sourceChapter, props.editorTabIndex]);
 
   React.useLayoutEffect(() => {
     if (editor === undefined) {
@@ -528,7 +545,7 @@ const EditorBase = React.memo((props: EditorProps & LocalStateProps) => {
     ]
   );
 
-  aceEditorProps.commands = Object.entries(keyHandlers)
+  aceEditorProps.commands = objectEntries(keyHandlers)
     .filter(([_, exec]) => exec)
     .map(([name, exec]) => ({ name, bindKey: keyBindings[name], exec: exec! }));
 
@@ -559,12 +576,94 @@ const EditorBase = React.memo((props: EditorProps & LocalStateProps) => {
     }
   });
 
+  // Override the overlayPage function to add an id to the overlay div.
+  // This allows the overlay div to be referenced and removed when the editor is unmounted.
+  // See https://github.com/source-academy/frontend/pull/2832
+  acequire('ace/ext/menu_tools/overlay_page').overlayPage = function (
+    editor: any,
+    contentElement: HTMLElement,
+    callback: any
+  ) {
+    let closer: HTMLElement | null = document.createElement('div');
+    // Add id to the overlay div
+    closer.id = 'overlay';
+    let ignoreFocusOut = false;
+
+    function documentEscListener(e: KeyboardEvent) {
+      if (e.keyCode === 27) {
+        close();
+      }
+    }
+
+    function close() {
+      if (!closer) return;
+      document.removeEventListener('keydown', documentEscListener);
+      closer?.parentNode?.removeChild(closer);
+      if (editor) {
+        editor.focus();
+      }
+      closer = null;
+      callback?.();
+    }
+
+    /**
+     * Defines whether overlay is closed when user clicks outside of it.
+     *
+     * @param {Boolean} ignore      If set to true overlay stays open when focus moves to another part of the editor.
+     */
+    function setIgnoreFocusOut(ignore: boolean) {
+      ignoreFocusOut = ignore;
+      if (ignore) {
+        closer!.style.pointerEvents = 'none';
+        contentElement.style.pointerEvents = 'auto';
+      }
+    }
+
+    closer.style.cssText =
+      'margin: 0; padding: 0; ' +
+      'position: fixed; top:0; bottom:0; left:0; right:0;' +
+      'z-index: 9990; ' +
+      (editor ? 'background-color: rgba(0, 0, 0, 0.3);' : '');
+    closer.addEventListener('click', function (e: Event) {
+      if (!ignoreFocusOut) {
+        close();
+      }
+    });
+
+    // click closer if esc key is pressed
+    document.addEventListener('keydown', documentEscListener);
+
+    contentElement.addEventListener('click', function (e: Event) {
+      e.stopPropagation();
+    });
+
+    closer.appendChild(contentElement);
+    document.body.appendChild(closer);
+    if (editor) {
+      editor.blur();
+    }
+    return {
+      close: close,
+      setIgnoreFocusOut: setIgnoreFocusOut
+    };
+  };
+
+  // Remove the overlay div when the editor is unmounted
+  React.useEffect(() => {
+    return () => {
+      const div = document.getElementById('overlay');
+      if (div) {
+        div.parentNode?.removeChild(div);
+      }
+    };
+  }, []);
+
   return (
-    <HotKeys className="Editor bp4-card bp4-elevation-0" handlers={handlers}>
+    <Card className="Editor">
       <div className="row editor-react-ace" data-testid="Editor">
         <AceEditor {...aceEditorProps} ref={reactAceRef} />
       </div>
-    </HotKeys>
+    </Card>
   );
 });
 

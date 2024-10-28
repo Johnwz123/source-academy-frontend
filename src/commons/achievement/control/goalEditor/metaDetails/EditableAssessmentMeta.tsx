@@ -1,15 +1,13 @@
-import { NumericInput } from '@blueprintjs/core';
-import { Tooltip2 } from '@blueprintjs/popover2';
+import { NumericInput, Tooltip } from '@blueprintjs/core';
 import React from 'react';
 import { AssessmentMeta, GoalMeta } from 'src/features/achievement/AchievementTypes';
 
-type EditableAssessmentMetaProps = {
+type Props = {
   assessmentMeta: AssessmentMeta;
   changeMeta: (meta: GoalMeta) => void;
 };
 
-const EditableAssessmentMeta: React.FC<EditableAssessmentMetaProps> = props => {
-  const { assessmentMeta, changeMeta } = props;
+const EditableAssessmentMeta: React.FC<Props> = ({ assessmentMeta, changeMeta }) => {
   const { assessmentNumber, requiredCompletionFrac } = assessmentMeta;
 
   const changeAssessmentNumber = (assessmentNumber: number) =>
@@ -22,15 +20,15 @@ const EditableAssessmentMeta: React.FC<EditableAssessmentMetaProps> = props => {
 
   return (
     <>
-      <Tooltip2 content="Assessment Number">
+      <Tooltip content="Assessment Number">
         <NumericInput
           allowNumericCharactersOnly={true}
           onValueChange={changeAssessmentNumber}
           placeholder="Enter assessment number here"
           value={assessmentNumber}
         />
-      </Tooltip2>
-      <Tooltip2 content="Required Completion Percentage">
+      </Tooltip>
+      <Tooltip content="Required Completion Percentage">
         <NumericInput
           allowNumericCharactersOnly={true}
           max={100}
@@ -40,7 +38,7 @@ const EditableAssessmentMeta: React.FC<EditableAssessmentMetaProps> = props => {
           rightElement={<p>%</p>}
           value={requiredCompletionFrac * 100}
         />
-      </Tooltip2>
+      </Tooltip>
     </>
   );
 };

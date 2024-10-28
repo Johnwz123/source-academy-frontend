@@ -1,17 +1,17 @@
-import { Button, Dialog, EditableText } from '@blueprintjs/core';
+import { Button, Dialog, EditableText, Tooltip } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
-import { Tooltip2 } from '@blueprintjs/popover2';
 import React, { useState } from 'react';
 import { AchievementView } from 'src/features/achievement/AchievementTypes';
-type EditableViewProps = {
+
+type Props = {
   changeView: (view: AchievementView) => void;
   view: AchievementView;
 };
 
-const EditableView: React.FC<EditableViewProps> = ({ changeView, view }) => {
+const EditableView: React.FC<Props> = ({ changeView, view }) => {
   const { coverImage, description, completionText } = view;
 
-  const [isOpen, setOpen] = useState<boolean>(false);
+  const [isOpen, setOpen] = useState(false);
   const toggleOpen = () => setOpen(!isOpen);
 
   const changeCoverImage = (coverImage: string) => changeView({ ...view, coverImage });
@@ -24,9 +24,9 @@ const EditableView: React.FC<EditableViewProps> = ({ changeView, view }) => {
 
   return (
     <>
-      <Tooltip2 content="Edit View">
+      <Tooltip content="Edit View">
         <Button icon={IconNames.WIDGET_HEADER} onClick={toggleOpen} />
-      </Tooltip2>
+      </Tooltip>
 
       <Dialog title="Edit View" icon={IconNames.WIDGET_HEADER} isOpen={isOpen} onClose={toggleOpen}>
         <div style={{ padding: '0 0.5em' }}>

@@ -1,5 +1,4 @@
-import { Button, Menu, MenuItem } from '@blueprintjs/core';
-import { Popover2 } from '@blueprintjs/popover2';
+import { Button, Menu, MenuItem, Popover } from '@blueprintjs/core';
 
 type OptionType = { value: any; label: string };
 type Props<T extends OptionType> = {
@@ -7,12 +6,16 @@ type Props<T extends OptionType> = {
   selectedValue?: T['value'];
   onClick?: (v: T['value']) => void;
   buttonProps?: Partial<React.ComponentProps<typeof Button> & { 'data-testid': string }>;
-  popoverProps?: Partial<React.ComponentProps<typeof Popover2>>;
+  popoverProps?: Partial<React.ComponentProps<typeof Popover>>;
 };
 
-function SimpleDropdown<T extends OptionType>(props: Props<T>) {
-  const { options, selectedValue, onClick, buttonProps, popoverProps } = props;
-
+const SimpleDropdown = <T extends OptionType>({
+  options,
+  selectedValue,
+  onClick,
+  buttonProps,
+  popoverProps
+}: Props<T>) => {
   const handleClick = (value: T['value']) => {
     onClick?.(value);
   };
@@ -23,7 +26,7 @@ function SimpleDropdown<T extends OptionType>(props: Props<T>) {
   };
 
   return (
-    <Popover2
+    <Popover
       {...popoverProps}
       interactionKind="click"
       content={
@@ -35,8 +38,8 @@ function SimpleDropdown<T extends OptionType>(props: Props<T>) {
       }
     >
       <Button {...buttonProps}>{buttonLabel()}</Button>
-    </Popover2>
+    </Popover>
   );
-}
+};
 
 export default SimpleDropdown;

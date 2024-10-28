@@ -1,6 +1,5 @@
-import { Button, Checkbox, Dialog, EditableText } from '@blueprintjs/core';
+import { Button, Checkbox, Dialog, EditableText, Tooltip } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
-import { Tooltip2 } from '@blueprintjs/popover2';
 import React, { useState } from 'react';
 import { AchievementItem } from 'src/features/achievement/AchievementTypes';
 
@@ -8,7 +7,7 @@ import EditableGoalUuids from './achievementSettings/EditableGoalUuids';
 import EditablePosition from './achievementSettings/EditablePosition';
 import EditablePrerequisiteUuids from './achievementSettings/EditablePrerequisiteUuids';
 
-type AchievementSettingsProps = {
+type Props = {
   changeCardBackground: (cardBackground: string) => void;
   changeGoalUuids: (goalUuids: string[]) => void;
   changePosition: (position: number) => void;
@@ -17,26 +16,25 @@ type AchievementSettingsProps = {
   editableAchievement: AchievementItem;
 };
 
-const AchievementSettings: React.FC<AchievementSettingsProps> = props => {
-  const {
-    changeCardBackground,
-    changeGoalUuids,
-    changePosition,
-    changePrerequisiteUuids,
-    changeIsVariableXp,
-    editableAchievement
-  } = props;
+const AchievementSettings: React.FC<Props> = ({
+  changeCardBackground,
+  changeGoalUuids,
+  changePosition,
+  changePrerequisiteUuids,
+  changeIsVariableXp,
+  editableAchievement
+}) => {
   const { uuid, cardBackground, goalUuids, position, prerequisiteUuids, isVariableXp } =
     editableAchievement;
 
-  const [isOpen, setOpen] = useState<boolean>(false);
+  const [isOpen, setOpen] = useState(false);
   const toggleOpen = () => setOpen(!isOpen);
 
   return (
     <>
-      <Tooltip2 content="More Settings">
+      <Tooltip content="More Settings">
         <Button icon={IconNames.WRENCH} onClick={toggleOpen} />
-      </Tooltip2>
+      </Tooltip>
 
       <Dialog title="More Settings" icon={IconNames.WRENCH} isOpen={isOpen} onClose={toggleOpen}>
         <div style={{ padding: '0 0.5em' }}>

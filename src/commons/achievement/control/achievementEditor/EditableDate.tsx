@@ -1,26 +1,25 @@
-import { Button, Dialog } from '@blueprintjs/core';
+import { Button, Dialog, Tooltip } from '@blueprintjs/core';
 import { DatePicker } from '@blueprintjs/datetime';
-import { Tooltip2 } from '@blueprintjs/popover2';
 import React, { useState } from 'react';
 import { prettifyDate } from 'src/commons/achievement/utils/DateHelper';
 
-type EditableDateProps = {
+type Props = {
   type: string;
   date?: Date;
   changeDate: (date?: Date) => void;
 };
 
-const EditableDate: React.FC<EditableDateProps> = ({ type, date, changeDate }) => {
-  const [isOpen, setOpen] = useState<boolean>(false);
+const EditableDate: React.FC<Props> = ({ type, date, changeDate }) => {
+  const [isOpen, setOpen] = useState(false);
   const toggleOpen = () => setOpen(!isOpen);
 
   const hoverText = date === undefined ? `No ${type}` : `${prettifyDate(date)}`;
 
   return (
     <>
-      <Tooltip2 content={hoverText}>
+      <Tooltip content={hoverText}>
         <Button minimal={true} onClick={toggleOpen} outlined={true}>{`${type}`}</Button>
-      </Tooltip2>
+      </Tooltip>
       <Dialog
         isCloseButtonShown={false}
         isOpen={isOpen}

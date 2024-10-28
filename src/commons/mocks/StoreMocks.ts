@@ -1,9 +1,8 @@
+import { Store } from '@reduxjs/toolkit';
 import _ from 'lodash';
-import { DeepPartial, Store } from 'redux';
 import mockStore from 'redux-mock-store';
 
 import {
-  defaultAcademy,
   defaultAchievement,
   defaultDashboard,
   defaultFileSystem,
@@ -15,12 +14,15 @@ import {
   defaultWorkspaceManager,
   OverallState
 } from '../application/ApplicationTypes';
+import { SourceActionType } from '../utils/ActionsHelper';
+import { DeepPartial } from '../utils/TypeHelper';
 
-export function mockInitialStore(overrides?: DeepPartial<OverallState>): Store<OverallState> {
+export function mockInitialStore(
+  overrides?: DeepPartial<OverallState>
+): Store<OverallState, SourceActionType> {
   const createStore = (mockStore as any)();
   const state: OverallState = {
     router: defaultRouter,
-    academy: defaultAcademy,
     achievement: defaultAchievement,
     dashboard: defaultDashboard,
     playground: defaultPlayground,
@@ -30,5 +32,15 @@ export function mockInitialStore(overrides?: DeepPartial<OverallState>): Store<O
     fileSystem: defaultFileSystem,
     sideContent: defaultSideContentManager
   };
-  return createStore(_.merge(state, overrides));
+
+  const lodashMergeCustomizer = (objValue: any, srcValue: any) => {
+    if (_.isObject(objValue)) {
+      return {
+        ...objValue, // destination object
+        ...srcValue // overrides
+      };
+    }
+  };
+
+  return createStore(_.mergeWith(state, overrides, lodashMergeCustomizer));
 }

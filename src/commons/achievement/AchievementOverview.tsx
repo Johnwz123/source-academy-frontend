@@ -2,16 +2,16 @@ import React, { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { AchievementUser } from 'src/features/achievement/AchievementTypes';
 
-import { FETCH_TOTAL_XP, FETCH_TOTAL_XP_ADMIN } from '../application/types/SessionTypes';
+import SessionActions from '../application/actions/SessionActions';
 import { useTypedSelector } from '../utils/Hooks';
 import AchievementLevel from './overview/AchievementLevel';
 
-type AchievementOverviewProps = {
+type Props = {
   name: string;
   userState: [AchievementUser | undefined, any];
 };
 
-const AchievementOverview: React.FC<AchievementOverviewProps> = ({ name, userState }) => {
+const AchievementOverview: React.FC<Props> = ({ name, userState }) => {
   const [selectedUser] = userState;
   const crid = selectedUser?.courseRegId;
   const userCrid = useTypedSelector(store => store.session.courseRegId);
@@ -20,9 +20,9 @@ const AchievementOverview: React.FC<AchievementOverviewProps> = ({ name, userSta
   useEffect(() => {
     // If user is student, fetch assessment details from assessment route instead, as seen below
     if (crid && crid !== userCrid) {
-      dispatch({ type: FETCH_TOTAL_XP_ADMIN, payload: crid });
+      dispatch(SessionActions.fetchTotalXpAdmin(crid));
     } else {
-      dispatch({ type: FETCH_TOTAL_XP });
+      dispatch(SessionActions.fetchTotalXp());
     }
   }, [crid, userCrid, dispatch]);
 

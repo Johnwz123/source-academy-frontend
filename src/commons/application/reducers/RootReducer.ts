@@ -1,6 +1,6 @@
-import { combineReducers } from 'redux';
+import { combineReducers, Reducer } from '@reduxjs/toolkit';
+import { SourceActionType } from 'src/commons/utils/ActionsHelper';
 
-import { AcademyReducer as academy } from '../../../features/academy/AcademyReducer';
 import { AchievementReducer as achievement } from '../../../features/achievement/AchievementReducer';
 import { DashboardReducer as dashboard } from '../../../features/dashboard/DashboardReducer';
 import { PlaygroundReducer as playground } from '../../../features/playground/PlaygroundReducer';
@@ -8,21 +8,20 @@ import { StoriesReducer as stories } from '../../../features/stories/StoriesRedu
 import { FileSystemReducer as fileSystem } from '../../fileSystem/FileSystemReducer';
 import { SideContentReducer as sideContent } from '../../sideContent/SideContentReducer';
 import { WorkspaceReducer as workspaces } from '../../workspace/WorkspaceReducer';
+import { OverallState } from '../ApplicationTypes';
 import { RouterReducer as router } from './CommonsReducer';
 import { SessionsReducer as session } from './SessionsReducer';
 
-const createRootReducer = () =>
-  combineReducers({
-    router,
-    academy,
-    achievement,
-    dashboard,
-    playground,
-    session,
-    stories,
-    workspaces,
-    fileSystem,
-    sideContent
-  });
+const rootReducer: Reducer<OverallState, SourceActionType> = combineReducers({
+  router,
+  achievement,
+  dashboard,
+  playground,
+  session,
+  stories,
+  workspaces,
+  fileSystem,
+  sideContent
+});
 
-export default createRootReducer;
+export default rootReducer;

@@ -288,7 +288,6 @@ class AchievementInferencer {
     // finally, process the nodeList
     this.processNodes();
     this.normalizePositions(achievement.uuid, achievement.position);
-
     return newUuid;
   }
 
@@ -908,10 +907,10 @@ class AchievementInferencer {
     node.status = achievementCompleted
       ? AchievementStatus.COMPLETED
       : hasReleased
-      ? hasUnexpiredDeadline
-        ? AchievementStatus.ACTIVE
-        : AchievementStatus.EXPIRED
-      : AchievementStatus.UNRELEASED;
+        ? hasUnexpiredDeadline
+          ? AchievementStatus.ACTIVE
+          : AchievementStatus.EXPIRED
+        : AchievementStatus.UNRELEASED;
   }
 
   /**

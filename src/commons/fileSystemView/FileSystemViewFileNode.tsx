@@ -7,13 +7,13 @@ import { useDispatch } from 'react-redux';
 import classes from 'src/styles/FileSystemView.module.scss';
 
 import { showSimpleConfirmDialog } from '../utils/DialogHelper';
-import { addEditorTab, removeEditorTabForFile } from '../workspace/WorkspaceActions';
+import WorkspaceActions from '../workspace/WorkspaceActions';
 import { WorkspaceLocation } from '../workspace/WorkspaceTypes';
 import FileSystemViewContextMenu from './FileSystemViewContextMenu';
 import FileSystemViewFileName from './FileSystemViewFileName';
 import FileSystemViewIndentationPadding from './FileSystemViewIndentationPadding';
 
-export type FileSystemViewFileNodeProps = {
+type Props = {
   workspaceLocation: WorkspaceLocation;
   fileSystem: FSModule;
   basePath: string;
@@ -22,13 +22,15 @@ export type FileSystemViewFileNodeProps = {
   refreshDirectory: () => void;
 };
 
-const FileSystemViewFileNode: React.FC<FileSystemViewFileNodeProps> = (
-  props: FileSystemViewFileNodeProps
-) => {
-  const { workspaceLocation, fileSystem, basePath, fileName, indentationLevel, refreshDirectory } =
-    props;
-
-  const [isEditing, setIsEditing] = React.useState<boolean>(false);
+const FileSystemViewFileNode: React.FC<Props> = ({
+  workspaceLocation,
+  fileSystem,
+  basePath,
+  fileName,
+  indentationLevel,
+  refreshDirectory
+}) => {
+  const [isEditing, setIsEditing] = React.useState(false);
   const dispatch = useDispatch();
 
   const fullPath = path.join(basePath, fileName);
@@ -42,7 +44,7 @@ const FileSystemViewFileNode: React.FC<FileSystemViewFileNodeProps> = (
         throw new Error('File contents are undefined.');
       }
 
-      dispatch(addEditorTab(workspaceLocation, fullPath, fileContents));
+      dispatch(WorkspaceActions.addEditorTab(workspaceLocation, fullPath, fileContents));
     });
   };
 
@@ -72,7 +74,7 @@ const FileSystemViewFileNode: React.FC<FileSystemViewFileNodeProps> = (
           console.error(err);
         }
 
-        dispatch(removeEditorTabForFile(workspaceLocation, fullPath));
+        dispatch(WorkspaceActions.removeEditorTabForFile(workspaceLocation, fullPath));
         refreshDirectory();
       });
     });

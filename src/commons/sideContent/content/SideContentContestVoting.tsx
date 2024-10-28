@@ -1,12 +1,11 @@
-import { Button, Card, Classes, Collapse, Elevation, Icon, Pre } from '@blueprintjs/core';
+import { Button, Card, Classes, Collapse, Elevation, Icon, Pre, Tooltip } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
-import { Tooltip2 } from '@blueprintjs/popover2';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ContestEntry } from '../../assessment/AssessmentTypes';
 
-export type SideContentContestVotingProps = DispatchProps & StateProps;
+type SideContentContestVotingProps = DispatchProps & StateProps;
 
 type DispatchProps = {
   handleContestEntryClick: (submissionId: number, answer: string) => void;
@@ -28,15 +27,14 @@ const TIERS = [
   { name: 'D', color: 'rgb(127, 191, 255)', score: 1 }
 ];
 
-const SideContentContestVoting: React.FunctionComponent<SideContentContestVotingProps> = props => {
-  const {
-    contestEntries,
-    canSave,
-    isValid,
-    handleContestEntryClick,
-    handleVotingSubmissionChange
-  } = props;
-  const [showContestEntries, setShowContestEntries] = useState<boolean>(true);
+const SideContentContestVoting: React.FC<SideContentContestVotingProps> = ({
+  contestEntries,
+  canSave,
+  isValid,
+  handleContestEntryClick,
+  handleVotingSubmissionChange
+}) => {
+  const [showContestEntries, setShowContestEntries] = useState(true);
   const [currentDraggedItem, setCurrentDraggedItem] = useState<HTMLElement | null>(null);
   const [hoveredTier, setHoveredTier] = useState<string | null>(null);
 
@@ -99,8 +97,8 @@ const SideContentContestVoting: React.FunctionComponent<SideContentContestVoting
     [currentDraggedItem]
   );
 
-  const contestEntryRefs = useRef({});
-  const tierContainerRefs = useRef({});
+  const contestEntryRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const tierContainerRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const tierBoard = useMemo(() => {
     return TIERS.map((tier, index) => (
@@ -215,13 +213,13 @@ const SideContentContestVoting: React.FunctionComponent<SideContentContestVoting
         onClick={() => setShowContestEntries(!showContestEntries)}
       >
         <span>Contest Voting</span>
-        <Tooltip2
+        <Tooltip
           content={
             <span>Rank your favourite contest entries from tiers D (worst) to S (best)!</span>
           }
         >
           <Icon icon={IconNames.HELP} />
-        </Tooltip2>
+        </Tooltip>
       </Button>
       <Collapse isOpen={showContestEntries} keepChildrenMounted>
         {contestEntryCards}

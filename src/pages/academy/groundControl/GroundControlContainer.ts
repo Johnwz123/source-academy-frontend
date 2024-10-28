@@ -1,37 +1,36 @@
+import { bindActionCreators, Dispatch } from '@reduxjs/toolkit';
 import { connect, MapDispatchToProps, MapStateToProps } from 'react-redux';
-import { bindActionCreators, Dispatch } from 'redux';
 
-import {
-  fetchAssessmentOverviews,
-  fetchCourseConfig
-} from '../../../commons/application/actions/SessionActions';
+import SessionActions from '../../../commons/application/actions/SessionActions';
 import { OverallState } from '../../../commons/application/ApplicationTypes';
-import {
-  changeDateAssessment,
-  deleteAssessment,
-  publishAssessment,
-  uploadAssessment
-} from '../../../features/groundControl/GroundControlActions';
-import GroundControl, { DispatchProps, StateProps } from './GroundControl';
+import GroundControlActions from '../../../features/groundControl/GroundControlActions';
+import GroundControl, { DispatchProps } from './GroundControl';
 
-const mapStateToProps: MapStateToProps<StateProps, {}, OverallState> = state => ({
-  assessmentOverviews: state.session.assessmentOverviews,
-  assessmentConfigurations: state.session.assessmentConfigurations
-});
+const mapStateToProps: MapStateToProps<{}, {}, OverallState> = state => ({});
 
 const mapDispatchToProps: MapDispatchToProps<DispatchProps, {}> = (dispatch: Dispatch) =>
   bindActionCreators(
     {
-      handleAssessmentChangeDate: changeDateAssessment,
-      handleAssessmentOverviewFetch: fetchAssessmentOverviews,
-      handleDeleteAssessment: deleteAssessment,
-      handleUploadAssessment: uploadAssessment,
-      handlePublishAssessment: publishAssessment,
-      handleFetchCourseConfigs: fetchCourseConfig
+      handleAssessmentChangeDate: GroundControlActions.changeDateAssessment,
+      handleAssessmentChangeTeamSize: GroundControlActions.changeTeamSizeAssessment,
+      handleAssessmentOverviewFetch: SessionActions.fetchAssessmentOverviews,
+      handleDeleteAssessment: GroundControlActions.deleteAssessment,
+      handleUploadAssessment: GroundControlActions.uploadAssessment,
+      handlePublishAssessment: GroundControlActions.publishAssessment,
+      handlePublishGradingAll: GroundControlActions.publishGradingAll,
+      handleUnpublishGradingAll: GroundControlActions.unpublishGradingAll,
+      handleFetchCourseConfigs: SessionActions.fetchCourseConfig,
+      handleConfigureAssessment: GroundControlActions.configureAssessment,
+      handleAssignEntriesForVoting: GroundControlActions.assignEntriesForVoting
     },
     dispatch
   );
 
 const GroundControlContainer = connect(mapStateToProps, mapDispatchToProps)(GroundControl);
+
+// react-router lazy loading
+// https://reactrouter.com/en/main/route/lazy
+export const Component = GroundControlContainer;
+Component.displayName = 'GroundControl';
 
 export default GroundControlContainer;

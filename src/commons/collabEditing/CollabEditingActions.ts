@@ -1,24 +1,29 @@
-import { createAction } from '@reduxjs/toolkit';
-
+import { createActions } from '../redux/utils';
 import { WorkspaceLocation } from '../workspace/WorkspaceTypes';
-import { SET_EDITOR_SESSION_ID, SET_SHAREDB_CONNECTED } from './CollabEditingTypes';
 
-export const setEditorSessionId = createAction(
-  SET_EDITOR_SESSION_ID,
-  (workspaceLocation: WorkspaceLocation, editorSessionId: string) => ({
-    payload: { workspaceLocation, editorSessionId }
+const CollabEditingActions = createActions('collabEditing', {
+  setEditorSessionId: (workspaceLocation: WorkspaceLocation, editorSessionId: string) => ({
+    workspaceLocation,
+    editorSessionId
+  }),
+  setSessionDetails: (
+    workspaceLocation: WorkspaceLocation,
+    sessionDetails: { docId: string; readOnly: boolean } | null
+  ) => ({ workspaceLocation, sessionDetails }),
+  /**
+   * Sets ShareDB connection status.
+   *
+   * @param workspaceLocation the workspace to be reset
+   * @param connected whether we are connected to ShareDB
+   */
+  setSharedbConnected: (workspaceLocation: WorkspaceLocation, connected: boolean) => ({
+    workspaceLocation,
+    connected
   })
-);
+});
 
-/**
- * Sets ShareDB connection status.
- *
- * @param workspaceLocation the workspace to be reset
- * @param connected whether we are connected to ShareDB
- */
-export const setSharedbConnected = createAction(
-  SET_SHAREDB_CONNECTED,
-  (workspaceLocation: WorkspaceLocation, connected: boolean) => ({
-    payload: { workspaceLocation, connected }
-  })
-);
+// For compatibility with existing code (reducer)
+export const { setEditorSessionId, setSessionDetails, setSharedbConnected } = CollabEditingActions;
+
+// For compatibility with existing code (actions helper)
+export default CollabEditingActions;

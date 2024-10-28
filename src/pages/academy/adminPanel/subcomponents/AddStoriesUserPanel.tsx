@@ -1,18 +1,18 @@
 import {
   Button,
   Callout,
-  FileInput,
+  Classes,
   FormGroup,
   H2,
   H4,
   HTMLSelect,
   Icon,
   Intent,
+  Popover,
   Position
 } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
-import { Popover2 } from '@blueprintjs/popover2';
-import { GridApi, GridReadyEvent } from 'ag-grid-community';
+import { ColDef } from 'ag-grid-community';
 import { AgGridReact } from 'ag-grid-react';
 import { uniqBy } from 'lodash';
 import React from 'react';
@@ -31,45 +31,30 @@ export type NameUsernameRole = {
   role: StoriesRole;
 };
 
+const columnDefs: ColDef<NameUsernameRole>[] = [
+  { headerName: 'Name', field: 'name' },
+  { headerName: 'Username', field: 'username' },
+  { headerName: 'Role', field: 'role' }
+];
+
+const defaultColumnDefs: ColDef = {
+  flex: 1,
+  filter: true,
+  resizable: true,
+  sortable: true
+};
+
 const AddStoriesUserPanel: React.FC<Props> = props => {
   const [users, setUsers] = React.useState<NameUsernameRole[]>([]);
   const [invalidCsvMsg, setInvalidCsvMsg] = React.useState<string | JSX.Element>('');
-  const gridApi = React.useRef<GridApi>();
   const { CSVReader } = useCSVReader();
-
-  const columnDefs = [
-    {
-      headerName: 'Name',
-      field: 'name'
-    },
-    {
-      headerName: 'Username',
-      field: 'username'
-    },
-    {
-      headerName: 'Role',
-      field: 'role'
-    }
-  ];
-
-  const defaultColumnDefs = {
-    filter: true,
-    resizable: true,
-    sortable: true
-  };
-
-  const onGridReady = (params: GridReadyEvent) => {
-    gridApi.current = params.api;
-  };
 
   const grid = (
     <div className="Grid ag-grid-parent ag-theme-balham">
       <AgGridReact
-        domLayout={'autoHeight'}
+        domLayout="autoHeight"
         columnDefs={columnDefs}
         defaultColDef={defaultColumnDefs}
-        onGridReady={onGridReady}
-        onGridSizeChanged={() => gridApi.current?.sizeColumnsToFit()}
         rowData={users}
         rowHeight={36}
         suppressCellFocus={true}
@@ -177,8 +162,11 @@ const AddStoriesUserPanel: React.FC<Props> = props => {
               >
                 {({ getRootProps, acceptedFile, ProgressBar, getRemoveFileProps }: any) => (
                   <>
-                    <FileInput text="Upload CSV" inputProps={getRootProps()} />
-                    <Popover2
+                    <label className={Classes.FILE_INPUT} {...getRootProps()}>
+                      <div style={{ minWidth: 250 }}> </div>
+                      <span className={Classes.FILE_UPLOAD_INPUT}>Upload CSV</span>
+                    </label>
+                    <Popover
                       content={
                         <div>
                           <p>
@@ -226,7 +214,7 @@ const AddStoriesUserPanel: React.FC<Props> = props => {
                       popoverClassName="file-input-popover"
                     >
                       <Icon icon={IconNames.HELP} className="file-input-icon" />
-                    </Popover2>
+                    </Popover>
                   </>
                 )}
               </CSVReader>
@@ -237,14 +225,14 @@ const AddStoriesUserPanel: React.FC<Props> = props => {
               label={
                 <div className="html-select-label">
                   <div>Authentication Provider</div>
-                  <Popover2
+                  <Popover
                     content="The authentication provider your learners will use to log in with"
                     interactionKind="hover-target"
                     position={Position.TOP}
                     popoverClassName="html-select-popover"
                   >
                     <Icon icon={IconNames.HELP} className="html-select-label-icon" />
-                  </Popover2>
+                  </Popover>
                 </div>
               }
               inline

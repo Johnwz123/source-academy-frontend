@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { act } from 'react';
 import { shallowRender } from 'src/commons/utils/TestUtils';
 
 import SideContentContestLeaderboard from '../content/SideContentContestLeaderboard';
@@ -40,18 +41,18 @@ test('SideContentContestLeaderboard matches snapshot', () => {
   expect(contestLeaderboardComponentRender).toMatchSnapshot();
 });
 
-test('SideContentContestLeaderboard component renders correct number of entries.', () => {
+test('SideContentContestLeaderboard component renders correct number of entries.', async () => {
   const contestVotingContainer = <SideContentContestLeaderboard {...mockProps} />;
-  render(contestVotingContainer);
+  await act(() => render(contestVotingContainer));
   expect(screen.getAllByTestId('SideContentLeaderboardCard')).toHaveLength(
     mockLeaderboardEntries.length
   );
 });
 
 // test rendering behaviour
-test('SideContentContestLeaderboard orders entry in the same order as orderedContestEntries prop', () => {
+test('SideContentContestLeaderboard orders entry in the same order as orderedContestEntries prop', async () => {
   const contestVotingContainer = <SideContentContestLeaderboard {...mockProps} />;
-  render(contestVotingContainer);
+  await act(() => render(contestVotingContainer));
   const scores = screen.getAllByTestId('contestentry-score').map(elem => elem.textContent);
   expect(scores).toEqual(['100', '90', '80']);
 });
@@ -67,7 +68,7 @@ test('Clicking the contest entry updates the editor for score leaderboard.', asy
   };
 
   const contestVotingContainer = <SideContentContestLeaderboard {...mockProps} />;
-  render(contestVotingContainer);
+  await act(() => render(contestVotingContainer));
   mockedHandleContestEntryClick.mockClear();
 
   const cards = screen.getAllByTestId('SideContentLeaderboardCard');

@@ -4,8 +4,7 @@ import qs from 'query-string';
 import { call } from 'redux-saga/effects';
 import { expectSaga } from 'redux-saga-test-plan';
 
-import { updateShortURL } from '../../../features/playground/PlaygroundActions';
-import { SHORTEN_URL } from '../../../features/playground/PlaygroundTypes';
+import PlaygroundActions from '../../../features/playground/PlaygroundActions';
 import {
   createDefaultWorkspace,
   defaultState,
@@ -85,9 +84,11 @@ describe('Playground saga tests', () => {
           usingSubst: false,
           usingCse: false,
           updateCse: true,
+          usingUpload: false,
           currentStep: -1,
           stepsTotal: 0,
-          breakpointSteps: []
+          breakpointSteps: [],
+          changepointSteps: []
         }
       }
     };
@@ -119,13 +120,13 @@ describe('Playground saga tests', () => {
     return expectSaga(PlaygroundSaga)
       .withState(nxState)
       .dispatch({
-        type: SHORTEN_URL,
+        type: PlaygroundActions.shortenURL.type,
         payload: ''
       })
       .provide([[call(shortenURLRequest, queryString, ''), mockResp]])
       .not.call(showWarningMessage, errMsg)
       .not.call(showSuccessMessage, mockResp.message)
-      .put(updateShortURL(mockResp.shorturl))
+      .put(PlaygroundActions.updateShortURL(mockResp.shorturl))
       .silentRun();
   });
 
@@ -152,9 +153,11 @@ describe('Playground saga tests', () => {
           usingSubst: false,
           usingCse: false,
           updateCse: true,
+          usingUpload: false,
           currentStep: -1,
           stepsTotal: 0,
-          breakpointSteps: []
+          breakpointSteps: [],
+          changepointSteps: []
         }
       }
     };
@@ -186,13 +189,13 @@ describe('Playground saga tests', () => {
     return expectSaga(PlaygroundSaga)
       .withState(nxState)
       .dispatch({
-        type: SHORTEN_URL,
+        type: PlaygroundActions.shortenURL.type,
         payload: 'tester'
       })
       .provide([[call(shortenURLRequest, queryString, 'tester'), mockResp]])
       .not.call(showWarningMessage, errMsg)
       .not.call(showSuccessMessage, mockResp.message)
-      .put(updateShortURL(mockResp.shorturl))
+      .put(PlaygroundActions.updateShortURL(mockResp.shorturl))
       .silentRun();
   });
 
@@ -219,9 +222,11 @@ describe('Playground saga tests', () => {
           usingSubst: false,
           usingCse: false,
           updateCse: true,
+          usingUpload: false,
           currentStep: -1,
           stepsTotal: 0,
-          breakpointSteps: []
+          breakpointSteps: [],
+          changepointSteps: []
         }
       }
     };
@@ -237,12 +242,12 @@ describe('Playground saga tests', () => {
     return expectSaga(PlaygroundSaga)
       .withState(nxState)
       .dispatch({
-        type: SHORTEN_URL,
+        type: PlaygroundActions.shortenURL.type,
         payload: ''
       })
       .provide([[call(shortenURLRequest, queryString, ''), null]])
       .call(showWarningMessage, errMsg)
-      .put(updateShortURL('ERROR'))
+      .put(PlaygroundActions.updateShortURL('ERROR'))
       .silentRun();
   });
 
@@ -268,10 +273,12 @@ describe('Playground saga tests', () => {
           ],
           usingSubst: false,
           usingCse: false,
+          usingUpload: false,
           updateCse: true,
           currentStep: -1,
           stepsTotal: 0,
-          breakpointSteps: []
+          breakpointSteps: [],
+          changepointSteps: []
         }
       }
     };
@@ -305,13 +312,13 @@ describe('Playground saga tests', () => {
     return expectSaga(PlaygroundSaga)
       .withState(nxState)
       .dispatch({
-        type: SHORTEN_URL,
+        type: PlaygroundActions.shortenURL.type,
         payload: ''
       })
       .provide([[call(shortenURLRequest, queryString, ''), mockResp]])
       .call(showSuccessMessage, mockResp.message)
       .not.call(showWarningMessage, errMsg)
-      .put(updateShortURL(mockResp.shorturl))
+      .put(PlaygroundActions.updateShortURL(mockResp.shorturl))
       .silentRun();
   });
 
@@ -338,9 +345,11 @@ describe('Playground saga tests', () => {
           usingSubst: false,
           usingCse: false,
           updateCse: true,
+          usingUpload: false,
           currentStep: -1,
           stepsTotal: 0,
-          breakpointSteps: []
+          breakpointSteps: [],
+          changepointSteps: []
         }
       }
     };
@@ -364,12 +373,12 @@ describe('Playground saga tests', () => {
     return expectSaga(PlaygroundSaga)
       .withState(nxState)
       .dispatch({
-        type: SHORTEN_URL,
+        type: PlaygroundActions.shortenURL.type,
         payload: ''
       })
       .provide([[call(shortenURLRequest, queryString, ''), mockResp]])
       .call(showWarningMessage, mockResp.message)
-      .put(updateShortURL('ERROR'))
+      .put(PlaygroundActions.updateShortURL('ERROR'))
       .silentRun();
   });
 
@@ -396,9 +405,11 @@ describe('Playground saga tests', () => {
           usingSubst: false,
           usingCse: false,
           updateCse: true,
+          usingUpload: false,
           currentStep: -1,
           stepsTotal: 0,
-          breakpointSteps: []
+          breakpointSteps: [],
+          changepointSteps: []
         }
       }
     };
@@ -414,7 +425,7 @@ describe('Playground saga tests', () => {
     return expectSaga(PlaygroundSaga)
       .withState(nxState)
       .dispatch({
-        type: SHORTEN_URL,
+        type: PlaygroundActions.shortenURL.type,
         payload: ''
       })
       .provide({
@@ -424,7 +435,7 @@ describe('Playground saga tests', () => {
         })
       })
       .call(showWarningMessage, errMsg)
-      .put(updateShortURL('ERROR'))
+      .put(PlaygroundActions.updateShortURL('ERROR'))
       .silentRun();
   });
 });

@@ -2,9 +2,6 @@ import { Chapter, SourceError, Variant } from 'js-slang/dist/types';
 
 import { ExternalLibrary, ExternalLibraryName } from '../application/types/ExternalTypes';
 
-export const FETCH_ASSESSMENT_OVERVIEWS = 'FETCH_ASSESSMENT_OVERVIEWS';
-export const SUBMIT_ASSESSMENT = 'SUBMIT_ASSESSMENT';
-
 export enum AssessmentStatuses {
   attempting = 'attempting',
   attempted = 'attempted',
@@ -13,18 +10,25 @@ export enum AssessmentStatuses {
 }
 export type AssessmentStatus = keyof typeof AssessmentStatuses;
 
+// Devnote: If adjusting this, ensure that each status can be uniquely attributed to one set of backend parameters, and vice versa.
+// This allows for a clean conversion from progress status to backend parameters, ensuring only backend pagination.
+// Adjust the conversion functions in GradingUtils accordingly.
+export enum ProgressStatuses {
+  autograded = 'autograded',
+  not_attempted = 'not_attempted',
+  attempting = 'attempting',
+  attempted = 'attempted',
+  submitted = 'submitted',
+  graded = 'graded',
+  published = 'published'
+}
+
+export type ProgressStatus = keyof typeof ProgressStatuses;
+
 export type AssessmentWorkspaceParams = {
   assessmentId?: string;
   questionId?: string;
 };
-
-export enum GradingStatuses {
-  excluded = 'excluded',
-  graded = 'graded',
-  grading = 'grading',
-  none = 'none'
-}
-export type GradingStatus = keyof typeof GradingStatuses;
 
 export type AssessmentType = string;
 
@@ -59,19 +63,25 @@ export type AssessmentOverview = {
   closeAt: string;
   coverImage: string;
   fileName?: string; // For mission control
-  gradingStatus: GradingStatus;
   id: number;
-  isPublished?: boolean;
+  isPublished?: boolean; // refers to assessment as a whole being published
+  hasVotingFeatures: boolean;
+  hasTokenCounter?: boolean;
+  isVotingPublished?: boolean;
   maxXp: number;
+  earlySubmissionXp: number;
   number?: string; // For mission control
   openAt: string;
   private?: boolean;
+  isGradingPublished: boolean; // refers to specific assessment submission being published
   reading?: string; // For mission control
   shortSummary: string;
   status: AssessmentStatus;
   story: string | null;
   title: string;
   xp: number;
+  maxTeamSize: number; // For team assessment
+  hoursBeforeEarlyXpDecay: number;
 };
 
 /*
@@ -93,14 +103,17 @@ export type AssessmentConfiguration = {
   assessmentConfigId: number;
   type: AssessmentType;
   isManuallyGraded: boolean;
+  isGradingAutoPublished: boolean;
   displayInDashboard: boolean;
   hoursBeforeEarlyXpDecay: number;
   earlySubmissionXp: number;
   hasTokenCounter: boolean;
+  hasVotingFeatures: boolean;
 };
 
 export interface IProgrammingQuestion extends BaseQuestion {
   answer: string | null;
+  lastModifiedAt: string;
   autogradingResults: AutogradingResult[];
   graderTemplate?: string;
   prepend: string;
@@ -235,15 +248,20 @@ export const overviewTemplate = (): AssessmentOverview => {
     closeAt: '2100-12-01T00:00+08',
     coverImage: 'https://fakeimg.pl/300/',
     id: -1,
+    isPublished: false,
     maxXp: 0,
+    earlySubmissionXp: 0,
     openAt: '2000-01-01T00:00+08',
     title: 'Insert title here',
     reading: '',
     shortSummary: 'Insert short summary here',
     status: AssessmentStatuses.not_attempted,
     story: 'mission',
+    isGradingPublished: false,
     xp: 0,
-    gradingStatus: 'none'
+    maxTeamSize: 1,
+    hasVotingFeatures: false,
+    hoursBeforeEarlyXpDecay: 0
   };
 };
 
@@ -251,6 +269,7 @@ export const programmingTemplate = (): IProgrammingQuestion => {
   return {
     autogradingResults: [],
     answer: '// [Marking Scheme]\n// 1 mark for correct answer',
+    lastModifiedAt: '2023-08-05T17:48:24.000000Z',
     content: 'Enter content here',
     id: 0,
     library: emptyLibrary(),

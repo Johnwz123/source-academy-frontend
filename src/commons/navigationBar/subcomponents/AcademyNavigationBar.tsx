@@ -1,22 +1,27 @@
 import { Alignment, Navbar, NavbarGroup } from '@blueprintjs/core';
 import { IconName, IconNames } from '@blueprintjs/icons';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AssessmentType } from 'src/commons/assessment/AssessmentTypes';
 import { useSession } from 'src/commons/utils/Hooks';
 import { assessmentTypeLink } from 'src/commons/utils/ParamParseHelper';
 
 import { Role } from '../../application/ApplicationTypes';
-import { createDesktopNavlink, NavbarEntryInfo, renderNavlinksFromInfo } from '../NavigationBar';
+import { DesktopNavLink, NavbarEntryInfo } from '../NavigationBar';
 
-type OwnProps = {
+type Props = {
   assessmentTypes?: AssessmentType[];
 };
 
-const AcademyNavigationBar: React.FunctionComponent<OwnProps> = ({ assessmentTypes }) => {
+const AcademyNavigationBar: React.FC<Props> = ({ assessmentTypes }) => {
   const { role, courseId } = useSession();
   const isEnrolledInACourse = !!role;
 
-  const academyNavbarRightInfo = React.useMemo<NavbarEntryInfo[]>(
+  const leftEntries: NavbarEntryInfo[] = useMemo(
+    () => assessmentTypesToNavlinkInfo({ assessmentTypes, courseId, isEnrolledInACourse }),
+    [assessmentTypes, courseId, isEnrolledInACourse]
+  );
+
+  const rightEntries: NavbarEntryInfo[] = useMemo(
     () => getAcademyNavbarRightInfo({ isEnrolledInACourse, courseId, role }),
     [isEnrolledInACourse, courseId, role]
   );
@@ -28,17 +33,14 @@ const AcademyNavigationBar: React.FunctionComponent<OwnProps> = ({ assessmentTyp
   return (
     <Navbar className="NavigationBar secondary-navbar">
       <NavbarGroup align={Alignment.LEFT}>
-        {renderNavlinksFromInfo(
-          assessmentTypesToNavlinkInfo({
-            assessmentTypes,
-            courseId,
-            isEnrolledInACourse
-          }),
-          createDesktopNavlink
-        )}
+        {leftEntries.map((entry, i) => (
+          <DesktopNavLink key={i} {...entry} />
+        ))}
       </NavbarGroup>
       <NavbarGroup align={Alignment.RIGHT}>
-        {renderNavlinksFromInfo(academyNavbarRightInfo, createDesktopNavlink)}
+        {rightEntries.map((entry, i) => (
+          <DesktopNavLink key={i} {...entry} />
+        ))}
       </NavbarGroup>
     </Navbar>
   );
@@ -51,6 +53,7 @@ export const icons: IconName[] = [
   IconNames.COMPARISON,
   IconNames.MANUAL,
   IconNames.GRAPH,
+  IconNames.FORM,
   IconNames.LAB_TEST,
   IconNames.CALCULATOR
 ];
@@ -88,7 +91,7 @@ const getStaffNavlinkInfo = ({
       to: `/courses/${courseId}/groundcontrol`,
       icon: IconNames.SATELLITE,
       text: 'Ground Control',
-      disabled: !isStaffOrAdmin,
+      disabled: !isAdmin,
       hiddenInBreakpoints: ['xs', 'sm']
     },
     {
@@ -102,6 +105,13 @@ const getStaffNavlinkInfo = ({
       to: `/courses/${courseId}/sourcereel`,
       icon: IconNames.MOBILE_VIDEO,
       text: 'Sourcereel',
+      disabled: !isStaffOrAdmin,
+      hiddenInBreakpoints: ['xs', 'sm', 'md']
+    },
+    {
+      to: `/courses/${courseId}/teamformation`,
+      icon: IconNames.FORM,
+      text: 'Team Formation',
       disabled: !isStaffOrAdmin,
       hiddenInBreakpoints: ['xs', 'sm', 'md']
     },
@@ -138,15 +148,6 @@ export const getAcademyNavbarRightInfo = ({
   isEnrolledInACourse: boolean;
   courseId?: number;
   role?: Role;
-}): NavbarEntryInfo[] => [
-  ...getStaffNavlinkInfo({ courseId, role }),
-  {
-    to: `/courses/${courseId}/notipreference`,
-    icon: IconNames.NOTIFICATIONS,
-    text: 'Notifications',
-    disabled: !isEnrolledInACourse,
-    hiddenInBreakpoints: ['xs', 'sm', 'md', 'lg']
-  }
-];
+}): NavbarEntryInfo[] => [...getStaffNavlinkInfo({ courseId, role })];
 
 export default AcademyNavigationBar;

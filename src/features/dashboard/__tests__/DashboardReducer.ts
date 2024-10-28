@@ -1,7 +1,7 @@
 import { defaultDashboard } from '../../../commons/application/ApplicationTypes';
+import DashboardActions from '../DashboardActions';
 import { DashboardReducer } from '../DashboardReducer';
-import { DashboardState, UPDATE_GROUP_GRADING_SUMMARY } from '../DashboardTypes';
-import { GradingSummary } from '../DashboardTypes';
+import { DashboardState, GradingSummary } from '../DashboardTypes';
 
 const gradingSummaryTest1: GradingSummary = {
   cols: [
@@ -55,9 +55,9 @@ const gradingSummaryTest2: GradingSummary = {
 
 test('UPDATE_GROUP_GRADING_SUMMARY initialises dashboard state', () => {
   const action = {
-    type: UPDATE_GROUP_GRADING_SUMMARY,
+    type: DashboardActions.updateGroupGradingSummary.type,
     payload: gradingSummaryTest1
-  };
+  } as const;
 
   const result: DashboardState = DashboardReducer(defaultDashboard, action);
 
@@ -75,9 +75,9 @@ test('UPDATE_GROUP_GRADING_SUMMARY updates dashboard state', () => {
 
   const gradingSummaryPayload = gradingSummaryTest2;
   const action = {
-    type: UPDATE_GROUP_GRADING_SUMMARY,
+    type: DashboardActions.updateGroupGradingSummary.type,
     payload: gradingSummaryPayload
-  };
+  } as const;
 
   const result: DashboardState = DashboardReducer(newDefaultDashBoard, action);
 

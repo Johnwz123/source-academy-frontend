@@ -1,19 +1,16 @@
-import { HTMLSelect, Position } from '@blueprintjs/core';
-import { Popover2 } from '@blueprintjs/popover2';
+import { HTMLSelect, Popover, Position } from '@blueprintjs/core';
 import React from 'react';
 import { Role } from 'src/commons/application/ApplicationTypes';
 import { AdminPanelCourseRegistration } from 'src/commons/application/types/SessionTypes';
 
-type RolesCellProps = OwnProps;
-
-type OwnProps = {
+type Props = {
   data: AdminPanelCourseRegistration;
   rowIndex: number;
   courseRegId: number;
   handleUpdateUserRole: (courseRegId: number, role: Role) => void;
 };
 
-const RolesCell: React.FC<RolesCellProps> = props => {
+const RolesCell: React.FC<Props> = props => {
   const { data } = props;
 
   const changeHandler = React.useCallback(
@@ -24,21 +21,12 @@ const RolesCell: React.FC<RolesCellProps> = props => {
   );
 
   const roleOptions = [
-    {
-      label: 'Student',
-      value: Role.Student
-    },
-    {
-      label: 'Staff',
-      value: Role.Staff
-    },
-    {
-      label: 'Admin',
-      value: Role.Admin
-    }
+    { label: 'Student', value: Role.Student },
+    { label: 'Staff', value: Role.Staff },
+    { label: 'Admin', value: Role.Admin }
   ];
   return (
-    <Popover2
+    <Popover
       content="You cannot downgrade yourself from an admin role!"
       interactionKind="click"
       position={Position.TOP}
@@ -53,7 +41,7 @@ const RolesCell: React.FC<RolesCellProps> = props => {
         value={data.role}
         disabled={props.courseRegId === data.courseRegId}
       />
-    </Popover2>
+    </Popover>
   );
 };
 

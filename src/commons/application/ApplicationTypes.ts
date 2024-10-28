@@ -1,14 +1,12 @@
 import { Chapter, Language, SourceError, Variant } from 'js-slang/dist/types';
 
-import { AcademyState } from '../../features/academy/AcademyTypes';
 import { AchievementState } from '../../features/achievement/AchievementTypes';
 import { DashboardState } from '../../features/dashboard/DashboardTypes';
-import { GradingQuery } from '../../features/grading/GradingTypes';
 import { PlaygroundState } from '../../features/playground/PlaygroundTypes';
 import { PlaybackStatus, RecordingStatus } from '../../features/sourceRecorder/SourceRecorderTypes';
 import { StoriesEnvState, StoriesState } from '../../features/stories/StoriesTypes';
+import { freshSortState } from '../../pages/academy/grading/subcomponents/GradingSubmissionsTable';
 import { WORKSPACE_BASE_PATHS } from '../../pages/fileSystem/createInBrowserFileSystem';
-import { Assessment } from '../assessment/AssessmentTypes';
 import { FileSystemState } from '../fileSystem/FileSystemTypes';
 import { SideContentManagerState, SideContentState } from '../sideContent/SideContentTypes';
 import Constants from '../utils/Constants';
@@ -25,7 +23,6 @@ import { SessionState } from './types/SessionTypes';
 
 export type OverallState = {
   readonly router: RouterState;
-  readonly academy: AcademyState;
   readonly achievement: AchievementState;
   readonly playground: PlaygroundState;
   readonly session: SessionState;
@@ -123,13 +120,17 @@ export enum StoriesRole {
 export enum SupportedLanguage {
   JAVASCRIPT = 'JavaScript',
   SCHEME = 'Scheme',
-  PYTHON = 'Python'
+  PYTHON = 'Python',
+  JAVA = 'Java',
+  C = 'C'
 }
 
 export const SUPPORTED_LANGUAGES = [
   SupportedLanguage.JAVASCRIPT,
   SupportedLanguage.SCHEME,
-  SupportedLanguage.PYTHON
+  SupportedLanguage.PYTHON,
+  SupportedLanguage.JAVA,
+  SupportedLanguage.C
 ];
 
 /**
@@ -196,8 +197,26 @@ const schemeSubLanguages: Array<Pick<SALanguage, 'chapter' | 'variant' | 'displa
 ];
 
 export const schemeLanguages: SALanguage[] = schemeSubLanguages.map(sublang => {
-  return { ...sublang, mainLanguage: SupportedLanguage.SCHEME, supports: { repl: true } };
+  return {
+    ...sublang,
+    mainLanguage: SupportedLanguage.SCHEME,
+    supports: { repl: true, cseMachine: true }
+  };
 });
+
+export function isSchemeLanguage(chapter: Chapter): boolean {
+  return [
+    Chapter.SCHEME_1,
+    Chapter.SCHEME_2,
+    Chapter.SCHEME_3,
+    Chapter.SCHEME_4,
+    Chapter.FULL_SCHEME
+  ].includes(chapter);
+}
+
+export function isCseVariant(variant: Variant): boolean {
+  return variant == Variant.EXPLICIT_CONTROL;
+}
 
 const pySubLanguages: Array<Pick<SALanguage, 'chapter' | 'variant' | 'displayName'>> = [
   { chapter: Chapter.PYTHON_1, variant: Variant.DEFAULT, displayName: 'Python \xa71' }
@@ -210,6 +229,25 @@ const pySubLanguages: Array<Pick<SALanguage, 'chapter' | 'variant' | 'displayNam
 export const pyLanguages: SALanguage[] = pySubLanguages.map(sublang => {
   return { ...sublang, mainLanguage: SupportedLanguage.PYTHON, supports: { repl: true } };
 });
+
+export const javaLanguages: SALanguage[] = [
+  {
+    chapter: Chapter.FULL_JAVA,
+    variant: Variant.DEFAULT,
+    displayName: 'Java',
+    mainLanguage: SupportedLanguage.JAVA,
+    supports: { cseMachine: true }
+  }
+];
+export const cLanguages: SALanguage[] = [
+  {
+    chapter: Chapter.FULL_C,
+    variant: Variant.DEFAULT,
+    displayName: 'C',
+    mainLanguage: SupportedLanguage.C,
+    supports: {}
+  }
+];
 
 export const styliseSublanguage = (chapter: Chapter, variant: Variant = Variant.DEFAULT) => {
   return getLanguageConfig(chapter, variant).displayName;
@@ -279,7 +317,9 @@ export const ALL_LANGUAGES: readonly SALanguage[] = [
   fullTSLanguage,
   htmlLanguage,
   ...schemeLanguages,
-  ...pyLanguages
+  ...pyLanguages,
+  ...javaLanguages,
+  ...cLanguages
 ];
 // TODO: Remove this function once logic has been fully migrated
 export const getLanguageConfig = (
@@ -296,10 +336,6 @@ export const getLanguageConfig = (
 };
 
 export const defaultRouter: RouterState = null;
-
-export const defaultAcademy: AcademyState = {
-  gameCanvas: undefined
-};
 
 export const defaultDashboard: DashboardState = {
   gradingSummary: {
@@ -356,9 +392,7 @@ export const createDefaultWorkspace = (workspaceLocation: WorkspaceLocation): Wo
       filePath: ['playground', 'sicp'].includes(workspaceLocation)
         ? getDefaultFilePath(workspaceLocation)
         : undefined,
-      value: ['playground', 'sourcecast', 'githubAssessments'].includes(workspaceLocation)
-        ? defaultEditorValue
-        : '',
+      value: ['playground', 'sourcecast'].includes(workspaceLocation) ? defaultEditorValue : '',
       highlightedLines: [],
       breakpoints: []
     }
@@ -366,6 +400,7 @@ export const createDefaultWorkspace = (workspaceLocation: WorkspaceLocation): Wo
   programPrependValue: '',
   programPostpendValue: '',
   editorSessionId: '',
+  sessionDetails: null,
   isEditorReadonly: false,
   editorTestcases: [],
   externalLibrary: ExternalLibraryName.NONE,
@@ -388,10 +423,9 @@ export const createDefaultWorkspace = (workspaceLocation: WorkspaceLocation): Wo
   isDebugging: false,
   enableDebugging: true,
   debuggerContext: {} as DebuggerContext,
-  sideContent: {
-    alerts: [],
-    dynamicTabs: []
-  }
+  lastDebuggerResult: undefined,
+  lastNonDetResult: null,
+  files: {}
 });
 
 const defaultFileName = 'program.js';
@@ -412,16 +446,27 @@ export const defaultWorkspaceManager: WorkspaceManagerState = {
     },
     currentSubmission: undefined,
     currentQuestion: undefined,
-    hasUnsavedChanges: false
+    hasUnsavedChanges: false,
+    // TODO: The below should be a separate state
+    // instead of using the grading workspace state
+    columnVisiblity: [],
+    requestCounter: 0,
+    allColsSortStates: {
+      currentState: freshSortState,
+      sortBy: ''
+    },
+    hasLoadedBefore: false
   },
   playground: {
     ...createDefaultWorkspace('playground'),
     usingSubst: false,
     usingCse: false,
     updateCse: true,
+    usingUpload: false,
     currentStep: -1,
     stepsTotal: 0,
     breakpointSteps: [],
+    changepointSteps: [],
     activeEditorTabIndex: 0,
     editorTabs: [
       {
@@ -472,9 +517,11 @@ export const defaultWorkspaceManager: WorkspaceManagerState = {
     usingSubst: false,
     usingCse: false,
     updateCse: true,
+    usingUpload: false,
     currentStep: -1,
     stepsTotal: 0,
     breakpointSteps: [],
+    changepointSteps: [],
     activeEditorTabIndex: 0,
     editorTabs: [
       {
@@ -484,10 +531,6 @@ export const defaultWorkspaceManager: WorkspaceManagerState = {
         breakpoints: []
       }
     ]
-  },
-  githubAssessment: {
-    ...createDefaultWorkspace('githubAssessment'),
-    hasUnsavedChanges: false
   },
   stories: {
     ...createDefaultWorkspace('stories')
@@ -507,13 +550,15 @@ export const defaultSession: SessionState = {
     story: '',
     playStory: false
   },
-  assessments: new Map<number, Assessment>(),
+  assessments: {},
   assessmentOverviews: undefined,
   agreedToResearch: undefined,
   sessionId: Date.now(),
   githubOctokitObject: { octokit: undefined },
   gradingOverviews: undefined,
-  gradings: new Map<number, GradingQuery>(),
+  students: undefined,
+  teamFormationOverviews: undefined,
+  gradings: {},
   notifications: []
 };
 
@@ -521,7 +566,8 @@ export const defaultStories: StoriesState = {
   storyList: [],
   currentStoryId: null,
   currentStory: null,
-  envs: {}
+  envs: {},
+  storiesUsers: []
 };
 
 export const createDefaultStoriesEnv = (
@@ -529,18 +575,14 @@ export const createDefaultStoriesEnv = (
   chapter: Chapter,
   variant: Variant
 ): StoriesEnvState => ({
-  context: createContext<String>(chapter, [], envName, variant),
+  context: createContext<string>(chapter, [], envName, variant),
   execTime: 1000,
   isRunning: false,
   output: [],
   stepLimit: 1000,
   globals: [],
   usingSubst: false,
-  debuggerContext: {} as DebuggerContext,
-  sideContent: {
-    dynamicTabs: [],
-    alerts: []
-  }
+  debuggerContext: {} as DebuggerContext
 });
 
 export const defaultFileSystem: FileSystemState = {
@@ -556,7 +598,6 @@ export const defaultSideContentManager: SideContentManagerState = {
   assessment: defaultSideContent,
   grading: defaultSideContent,
   playground: defaultSideContent,
-  githubAssessment: defaultSideContent,
   sicp: defaultSideContent,
   sourcecast: defaultSideContent,
   sourcereel: defaultSideContent,
@@ -565,7 +606,6 @@ export const defaultSideContentManager: SideContentManagerState = {
 
 export const defaultState: OverallState = {
   router: defaultRouter,
-  academy: defaultAcademy,
   achievement: defaultAchievement,
   dashboard: defaultDashboard,
   playground: defaultPlayground,

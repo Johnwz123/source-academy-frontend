@@ -3,8 +3,8 @@ import { IconName, IconNames } from '@blueprintjs/icons';
 import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 
-import { fetchAssessmentOverviews, fetchTotalXp } from '../application/actions/SessionActions';
-import { AssessmentStatuses, AssessmentType, GradingStatuses } from '../assessment/AssessmentTypes';
+import SessionActions from '../application/actions/SessionActions';
+import { AssessmentStatuses, AssessmentType } from '../assessment/AssessmentTypes';
 import Constants from '../utils/Constants';
 import { useSession } from '../utils/Hooks';
 import ProfileCard from './ProfileCard';
@@ -34,13 +34,13 @@ const Profile: React.FC<ProfileProps> = props => {
   useEffect(() => {
     if (isLoggedIn && isEnrolledInACourse && !assessmentOverviews) {
       // If assessment overviews are not loaded, fetch them
-      dispatch(fetchAssessmentOverviews());
+      dispatch(SessionActions.fetchAssessmentOverviews());
     }
   }, [assessmentOverviews, dispatch, isLoggedIn, isEnrolledInACourse, xp]);
 
   useEffect(() => {
     if (isEnrolledInACourse && !xp) {
-      dispatch(fetchTotalXp());
+      dispatch(SessionActions.fetchTotalXp());
     }
   }, [isEnrolledInACourse, dispatch, xp]);
 
@@ -96,10 +96,10 @@ const Profile: React.FC<ProfileProps> = props => {
         return frac < 0
           ? ''
           : frac >= 0.8
-          ? ' progress-steelblue'
-          : frac >= 0.45
-          ? ' progress-deepskyblue'
-          : ' progress-skyblue';
+            ? ' progress-steelblue'
+            : frac >= 0.45
+              ? ' progress-deepskyblue'
+              : ' progress-skyblue';
       };
 
       // Given an assessment category, return its icon
@@ -126,12 +126,7 @@ const Profile: React.FC<ProfileProps> = props => {
 
       // Build condensed assessment cards from an array of assessments
       const summaryCallouts = assessmentOverviews!
-        .filter(
-          item =>
-            item.status === AssessmentStatuses.submitted &&
-            (item.gradingStatus === GradingStatuses.graded ||
-              item.gradingStatus === GradingStatuses.excluded)
-        )
+        .filter(item => item.isGradingPublished)
         .map((assessment, index) => {
           return (
             <ProfileCard

@@ -2,7 +2,7 @@ import { IconNames } from '@blueprintjs/icons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { Role } from 'src/commons/application/ApplicationTypes';
-import { useSession, useTypedSelector } from 'src/commons/utils/Hooks';
+import { useResponsive, useSession, useTypedSelector } from 'src/commons/utils/Hooks';
 
 import AchievementFilter from '../../../commons/achievement/AchievementFilter';
 import AchievementManualEditor from '../../../commons/achievement/AchievementManualEditor';
@@ -11,15 +11,8 @@ import AchievementTask from '../../../commons/achievement/AchievementTask';
 import AchievementView from '../../../commons/achievement/AchievementView';
 import AchievementInferencer from '../../../commons/achievement/utils/AchievementInferencer';
 import insertFakeAchievements from '../../../commons/achievement/utils/InsertFakeAchievements';
-import { fetchAssessmentOverviews } from '../../../commons/application/actions/SessionActions';
-import {
-  getAchievements,
-  getGoals,
-  getOwnGoals,
-  getUserAssessmentOverviews,
-  getUsers,
-  updateGoalProgress
-} from '../../../features/achievement/AchievementActions';
+import SessionActions from '../../../commons/application/actions/SessionActions';
+import AchievementActions from '../../../features/achievement/AchievementActions';
 import { AchievementContext } from '../../../features/achievement/AchievementConstants';
 import {
   AchievementUser,
@@ -52,6 +45,7 @@ const AchievementDashboard: React.FC = () => {
   // default nothing selected
   const userIdState = useState<AchievementUser | undefined>(undefined);
   const [selectedUser] = userIdState;
+  const { isMobileBreakpoint } = useResponsive();
 
   const {
     group,
@@ -79,15 +73,16 @@ const AchievementDashboard: React.FC = () => {
     handleUpdateGoalProgress
   } = useMemo(() => {
     return {
-      handleFetchAssessmentOverviews: () => dispatch(fetchAssessmentOverviews()),
-      handleGetAchievements: () => dispatch(getAchievements()),
-      handleGetGoals: (studentCourseRegId: number) => dispatch(getGoals(studentCourseRegId)),
-      handleGetOwnGoals: () => dispatch(getOwnGoals()),
+      handleFetchAssessmentOverviews: () => dispatch(SessionActions.fetchAssessmentOverviews()),
+      handleGetAchievements: () => dispatch(AchievementActions.getAchievements()),
+      handleGetGoals: (studentCourseRegId: number) =>
+        dispatch(AchievementActions.getGoals(studentCourseRegId)),
+      handleGetOwnGoals: () => dispatch(AchievementActions.getOwnGoals()),
       handleGetUserAssessmentOverviews: (studentCourseRegId: number) =>
-        dispatch(getUserAssessmentOverviews(studentCourseRegId)),
-      handleGetUsers: () => dispatch(getUsers()),
+        dispatch(AchievementActions.getUserAssessmentOverviews(studentCourseRegId)),
+      handleGetUsers: () => dispatch(AchievementActions.getUsers()),
       handleUpdateGoalProgress: (studentCourseRegId: number, progress: GoalProgress) =>
-        dispatch(updateGoalProgress(studentCourseRegId, progress))
+        dispatch(AchievementActions.updateGoalProgress(studentCourseRegId, progress))
     };
   }, [dispatch]);
 
@@ -95,11 +90,17 @@ const AchievementDashboard: React.FC = () => {
    * Fetch the latest achievements and goals from backend when the page is rendered
    */
   useEffect(() => {
-    selectedUser ? handleGetGoals(selectedUser.courseRegId) : handleGetOwnGoals();
+    if (selectedUser) {
+      handleGetGoals(selectedUser.courseRegId);
+    } else {
+      handleGetOwnGoals();
+    }
 
-    selectedUser
-      ? handleGetUserAssessmentOverviews(selectedUser.courseRegId)
-      : handleFetchAssessmentOverviews();
+    if (selectedUser) {
+      handleGetUserAssessmentOverviews(selectedUser.courseRegId);
+    } else {
+      handleFetchAssessmentOverviews();
+    }
 
     handleGetAchievements();
   }, [
@@ -117,9 +118,9 @@ const AchievementDashboard: React.FC = () => {
 
   // Inserts assessment achievements for each assessment retrieved
   // Note that assessmentConfigs is updated when the page loads (see Application.tsx)
-  userAssessmentOverviews &&
-    assessmentConfigs &&
+  if (userAssessmentOverviews && assessmentConfigs) {
     insertFakeAchievements(userAssessmentOverviews, assessmentConfigs, inferencer);
+  }
 
   const filterState = useState<FilterStatus>(FilterStatus.ALL);
   const [filterStatus] = filterState;
@@ -128,10 +129,10 @@ const AchievementDashboard: React.FC = () => {
    * Marks the achievement uuid that is currently on focus (selected)
    * If an achievement is focused, the cards glow and dashboard displays the AchievementView
    */
-  const focusState = useState<string>('');
+  const focusState = useState('');
   const [focusUuid, setFocusUuid] = focusState;
 
-  const hiddenState = useState<boolean>(false);
+  const hiddenState = useState(false);
   const [seeHidden] = hiddenState;
 
   // Resets AchievementView when the selected user changes
@@ -156,8 +157,7 @@ const AchievementDashboard: React.FC = () => {
             updateGoalProgress={handleUpdateGoalProgress}
           />
         )}
-
-        <div className="achievement-main">
+        <div className={isMobileBreakpoint ? 'achievement-main-mobile' : 'achievement-main'}>
           <div className="filter-container">
             <AchievementFilter
               filterState={filterState}

@@ -5,13 +5,10 @@ import { useDispatch } from 'react-redux';
 import classes from 'src/styles/FileSystemView.module.scss';
 
 import { showSimpleErrorDialog } from '../utils/DialogHelper';
-import {
-  renameEditorTabForFile,
-  renameEditorTabsForDirectory
-} from '../workspace/WorkspaceActions';
+import WorkspaceActions from '../workspace/WorkspaceActions';
 import { WorkspaceLocation } from '../workspace/WorkspaceTypes';
 
-export type FileSystemViewFileNameProps = {
+type Props = {
   workspaceLocation: WorkspaceLocation;
   fileSystem: FSModule;
   basePath: string;
@@ -22,21 +19,17 @@ export type FileSystemViewFileNameProps = {
   refreshDirectory: () => void;
 };
 
-const FileSystemViewFileName: React.FC<FileSystemViewFileNameProps> = (
-  props: FileSystemViewFileNameProps
-) => {
-  const {
-    workspaceLocation,
-    fileSystem,
-    basePath,
-    fileName,
-    isDirectory,
-    isEditing,
-    setIsEditing,
-    refreshDirectory
-  } = props;
-
-  const [editedFileName, setEditedFileName] = React.useState<string>(fileName);
+const FileSystemViewFileName: React.FC<Props> = ({
+  workspaceLocation,
+  fileSystem,
+  basePath,
+  fileName,
+  isDirectory,
+  isEditing,
+  setIsEditing,
+  refreshDirectory
+}) => {
+  const [editedFileName, setEditedFileName] = React.useState(fileName);
   const dispatch = useDispatch();
 
   const handleInputOnChange = (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -73,9 +66,11 @@ const FileSystemViewFileName: React.FC<FileSystemViewFileNameProps> = (
           }
 
           if (isDirectory) {
-            dispatch(renameEditorTabsForDirectory(workspaceLocation, oldPath, newPath));
+            dispatch(
+              WorkspaceActions.renameEditorTabsForDirectory(workspaceLocation, oldPath, newPath)
+            );
           } else {
-            dispatch(renameEditorTabForFile(workspaceLocation, oldPath, newPath));
+            dispatch(WorkspaceActions.renameEditorTabForFile(workspaceLocation, oldPath, newPath));
           }
           refreshDirectory();
         });

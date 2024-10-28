@@ -9,21 +9,21 @@ import {
   getAbilityGlow
 } from '../../features/achievement/AchievementConstants';
 import { AchievementStatus, AchievementUser } from '../../features/achievement/AchievementTypes';
-import { FETCH_ASSESSMENT, FETCH_ASSESSMENT_ADMIN } from '../application/types/SessionTypes';
-import { Assessment, FETCH_ASSESSMENT_OVERVIEWS } from '../assessment/AssessmentTypes';
+import SessionActions from '../application/actions/SessionActions';
+import { Assessment } from '../assessment/AssessmentTypes';
 import { useTypedSelector } from '../utils/Hooks';
 import AchievementCommentCard from './AchievementCommentCard';
 import { prettifyDate } from './utils/DateHelper';
 import AchievementViewCompletion from './view/AchievementViewCompletion';
 import AchievementViewGoal from './view/AchievementViewGoal';
 
-type AchievementViewProps = {
+type Props = {
   focusUuid: string;
   assessments?: Map<number, Assessment>;
   userState?: [AchievementUser | undefined, any];
 };
 
-const AchievementView: React.FC<AchievementViewProps> = ({ focusUuid, userState }) => {
+const AchievementView: React.FC<Props> = ({ focusUuid, userState }) => {
   const assessmentId = !Number.isNaN(+focusUuid) && +focusUuid !== 0 ? +focusUuid : undefined;
   let courseRegId: number | undefined;
 
@@ -36,22 +36,23 @@ const AchievementView: React.FC<AchievementViewProps> = ({ focusUuid, userState 
 
   const dispatch = useDispatch();
   useEffect(() => {
-    dispatch({ type: FETCH_ASSESSMENT_OVERVIEWS });
+    dispatch(SessionActions.fetchAssessmentOverviews());
     if (!assessmentId) {
       return;
     }
     if (isAdminView) {
       // Fetch selected user's assessment from admin route
-      dispatch({ type: FETCH_ASSESSMENT_ADMIN, payload: { assessmentId, courseRegId } });
+      // Safe to use non-null assertion (refer to `isAdminView` declaration above)
+      dispatch(SessionActions.fetchAssessmentAdmin(assessmentId, courseRegId!));
     } else {
       // If user is student, fetch assessment details from assessment route instead, as seen below
-      dispatch({ type: FETCH_ASSESSMENT, payload: { assessmentId } });
+      dispatch(SessionActions.fetchAssessment(assessmentId));
     }
   }, [dispatch, assessmentId, courseRegId, isAdminView]);
 
   const inferencer = useContext(AchievementContext);
   const assessments = useTypedSelector(store => store.session.assessments);
-  const selectedAssessment: Assessment | undefined = assessments.get(assessmentId!);
+  const selectedAssessment: Assessment | undefined = assessments[assessmentId!];
   const allAssessmentConfigs = useTypedSelector(store => store.session.assessmentOverviews) ?? [];
   const selectedAssessmentConfig = allAssessmentConfigs.find(config => config.id === assessmentId);
 

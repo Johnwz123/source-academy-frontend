@@ -1,7 +1,6 @@
-import * as bp3core from '@blueprintjs/core';
+import * as bpcore from '@blueprintjs/core';
 import { TabId } from '@blueprintjs/core';
-import * as bp3icons from '@blueprintjs/icons';
-import * as bp3popover from '@blueprintjs/popover2';
+import * as bpicons from '@blueprintjs/icons';
 import * as jsslang from 'js-slang';
 import * as jsslangDist from 'js-slang/dist';
 import lodash from 'lodash';
@@ -32,9 +31,8 @@ const requireProvider = (x: string) => {
     'react/jsx-runtime': JSXRuntime,
     'react-ace': ace,
     'react-dom': ReactDOM,
-    '@blueprintjs/core': bp3core,
-    '@blueprintjs/icons': bp3icons,
-    '@blueprintjs/popover2': bp3popover,
+    '@blueprintjs/core': bpcore,
+    '@blueprintjs/icons': bpicons,
     'js-slang': jsslang,
     'js-slang/dist': jsslangDist,
     lodash,
@@ -42,30 +40,33 @@ const requireProvider = (x: string) => {
   };
 
   if (!(x in exports)) throw new Error(`Dynamic require of ${x} is not supported`);
-  return exports[x];
+  return exports[x as keyof typeof exports] as any;
 };
 
-type RawTab = (provider: ReturnType<typeof requireProvider>) => ModuleSideContent;
+type RawTab = (provider: ReturnType<typeof requireProvider>) => { default: ModuleSideContent };
 
 /**
  * Returns an array of SideContentTabs to be spawned
  * @param debuggerContext - DebuggerContext object from redux store
  */
-export const getDynamicTabs = (debuggerContext: DebuggerContext): SideContentTab[] => {
+export function getDynamicTabs(debuggerContext: DebuggerContext): SideContentTab[] {
   const moduleContexts = debuggerContext?.context?.moduleContexts;
 
   if (!moduleContexts) return [];
 
   return Object.values(moduleContexts)
     .flatMap(({ tabs }) => tabs ?? [])
-    .map((rawTab: RawTab) => rawTab(requireProvider))
+    .map((rawTab: RawTab) => {
+      const { default: content } = rawTab(requireProvider);
+      return content;
+    })
     .filter(({ toSpawn }) => !toSpawn || toSpawn(debuggerContext))
     .map(tab => ({
       ...tab,
       body: tab.body(debuggerContext),
       id: SideContentType.module
     }));
-};
+}
 
 export const generateIconId = (tabId: TabId) => `${tabId}-icon`;
 export const getTabId = (tab: SideContentTab) =>
@@ -77,12 +78,19 @@ export const useSideContent = (location: SideContentLocation, defaultTab?: SideC
   const [workspaceLocation, storyEnv] = getLocation(location);
   const { alerts, dynamicTabs, selectedTab, height }: SideContentState = useTypedSelector(state =>
     workspaceLocation === 'stories'
-      ? state.sideContent.stories[storyEnv] ?? { ...defaultSideContent }
+      ? (state.sideContent.stories[storyEnv] ?? { ...defaultSideContent })
       : state.sideContent[workspaceLocation]
   );
   const dispatch = useDispatch();
   const setSelectedTab = useCallback(
     (newId: SideContentType) => {
+      if (
+        (selectedTab === SideContentType.substVisualizer ||
+          selectedTab === SideContentType.cseMachine) &&
+        newId === SideContentType.mobileEditorRun
+      ) {
+        return;
+      }
       dispatch(visitSideContent(newId, selectedTab, location));
     },
     [dispatch, location, selectedTab]

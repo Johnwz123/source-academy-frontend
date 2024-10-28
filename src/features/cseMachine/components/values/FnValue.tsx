@@ -1,5 +1,5 @@
-import { Environment } from 'js-slang/dist/types';
 import { KonvaEventObject } from 'konva/lib/Node';
+import { Label } from 'konva/lib/shapes/Label';
 import React, { RefObject } from 'react';
 import {
   Circle,
@@ -12,76 +12,63 @@ import {
 import CseMachine from '../../CseMachine';
 import { Config, ShapeDefaultProps } from '../../CseMachineConfig';
 import { Layout } from '../../CseMachineLayout';
-import { EnvTreeNode, FnTypes, IHoverable, ReferenceType } from '../../CseMachineTypes';
-import { getBodyText, getNonEmptyEnv, getParamsText, getTextWidth } from '../../CseMachineUtils';
+import { IHoverable, NonGlobalFn, ReferenceType } from '../../CseMachineTypes';
+import {
+  defaultStrokeColor,
+  defaultTextColor,
+  fadedStrokeColor,
+  fadedTextColor,
+  getBodyText,
+  getParamsText,
+  getTextWidth,
+  isMainReference,
+  isStreamFn,
+  setHoveredCursor,
+  setUnhoveredCursor
+} from '../../CseMachineUtils';
 import { ArrowFromFn } from '../arrows/ArrowFromFn';
-import { GenericArrow } from '../arrows/GenericArrow';
 import { Binding } from '../Binding';
 import { Frame } from '../Frame';
-import { GlobalFnValue } from './GlobalFnValue';
 import { Value } from './Value';
 
 /** this class encapsulates a JS Slang function (not from the global frame) that
  *  contains extra props such as environment and fnName */
 export class FnValue extends Value implements IHoverable {
-  centerX: number;
-  readonly tooltipWidth: number;
-  readonly exportTooltipWidth: number;
+  /** name of this function */
   readonly radius: number = Config.FnRadius;
   readonly innerRadius: number = Config.FnInnerRadius;
 
-  /** name of this function */
   readonly fnName: string;
   readonly paramsText: string;
   readonly bodyText: string;
   readonly exportBodyText: string;
   readonly tooltip: string;
+  readonly tooltipWidth: number;
   readonly exportTooltip: string;
-  private selected: boolean = false;
-  private _arrow: GenericArrow<FnValue | GlobalFnValue, Frame> | undefined;
+  readonly exportTooltipWidth: number;
+  readonly labelRef: RefObject<Label> = React.createRef();
 
-  /** the parent/enclosing environment of this fn value */
-  readonly enclosingEnvNode: EnvTreeNode;
-  readonly ref: RefObject<any> = React.createRef();
-  readonly labelRef: RefObject<any> = React.createRef();
+  centerX: number;
+  enclosingFrame?: Frame;
+  private _arrow: ArrowFromFn | undefined;
 
   constructor(
     /** underlying JS Slang function (contains extra props) */
-    readonly data: FnTypes,
+    readonly data: NonGlobalFn,
     /** what this value is being referenced by */
-    readonly referencedBy: ReferenceType[]
+    firstReference: ReferenceType
   ) {
     super();
-    Layout.memoizeValue(this);
+    Layout.memoizeValue(data, this);
 
-    // derive the coordinates from the main reference (binding / array unit)
-    const mainReference = this.referencedBy[0];
-    if (mainReference instanceof Binding) {
-      this._x = mainReference.frame.x() + mainReference.frame.width() + Config.FrameMarginX / 4;
-      this._y = mainReference.y();
-      this.centerX = this._x + this.radius * 2;
-    } else {
-      if (mainReference.isLastUnit) {
-        this._x = mainReference.x() + Config.DataUnitWidth * 2;
-        this._y = mainReference.y() + Config.DataUnitHeight / 2 - this.radius;
-      } else {
-        this._x = mainReference.x();
-        this._y = mainReference.y() + mainReference.parent.height() + Config.DataUnitHeight;
-      }
-      this.centerX = this._x + Config.DataUnitWidth / 2;
-      this._x = this.centerX - this.radius * 2;
-    }
-    this._y += this.radius;
-
+    this.centerX = 0;
     this._width = this.radius * 4;
     this._height = this.radius * 2;
 
-    this.enclosingEnvNode = Layout.environmentTree.getTreeNode(
-      getNonEmptyEnv(this.data.environment) as Environment
-    ) as EnvTreeNode;
-    this.fnName = this.data.functionName;
+    this.enclosingFrame = Frame.getFrom(this.data.environment);
+    this.fnName = isStreamFn(this.data) ? '' : this.data.functionName;
 
-    this.paramsText = `params: (${getParamsText(this.data)})`;
+    this.paramsText = `params: ${getParamsText(this.data)}`;
     this.bodyText = `body: ${getBodyText(this.data)}`;
     this.exportBodyText =
       (this.bodyText.length > 23 ? this.bodyText.slice(0, 20) : this.bodyText)
@@ -95,86 +82,68 @@ export class FnValue extends Value implements IHoverable {
       getTextWidth(this.paramsText),
       getTextWidth(this.exportBodyText)
     );
+
+    this.addReference(firstReference);
   }
 
-  isSelected(): boolean {
-    return this.selected;
-  }
-  arrow(): GenericArrow<FnValue | GlobalFnValue, Frame> | undefined {
-    return this._arrow;
-  }
-  updatePosition(): void {
-    const mainReference =
-      this.referencedBy.find(
-        x => x instanceof Binding && (x as Binding).frame.envTreeNode === this.enclosingEnvNode
-      ) || this.referencedBy[0];
-    if (mainReference instanceof Binding) {
-      this._x = mainReference.frame.x() + mainReference.frame.width() + Config.FrameMarginX / 4;
-      this._y = mainReference.y();
+  handleNewReference(newReference: ReferenceType): void {
+    if (!isMainReference(this, newReference)) return;
+
+    // derive the coordinates from the main reference (binding / array unit)
+    if (newReference instanceof Binding) {
+      this._x = newReference.frame.x() + newReference.frame.width() + Config.FrameMarginX;
+      this._y = newReference.y();
       this.centerX = this._x + this.radius * 2;
     } else {
-      if (mainReference.isLastUnit) {
-        this._x = mainReference.x() + Config.DataUnitWidth * 2;
-        this._y = mainReference.y() + Config.DataUnitHeight / 2 - this.radius;
+      if (newReference.isLastUnit) {
+        this._x = newReference.x() + Config.DataUnitWidth * 2;
+        this._y = newReference.y() + Config.DataUnitHeight / 2 - this.radius;
       } else {
-        this._x = mainReference.x();
-        this._y = mainReference.y() + mainReference.parent.height() + Config.DataUnitHeight;
+        this._x = newReference.x();
+        this._y = newReference.y() + newReference.parent.height() + Config.DataUnitHeight;
       }
       this.centerX = this._x + Config.DataUnitWidth / 2;
       this._x = this.centerX - this.radius * 2;
     }
     this._y += this.radius;
   }
-  reset(): void {
-    super.reset();
-    this.referencedBy.length = 0;
+
+  arrow(): ArrowFromFn | undefined {
+    return this._arrow;
   }
+
   onMouseEnter = ({ currentTarget }: KonvaEventObject<MouseEvent>) => {
     if (CseMachine.getPrintableMode()) return;
-    this.labelRef.current.moveToTop();
-    this.labelRef.current.show();
+    setHoveredCursor(currentTarget);
+    this.labelRef.current?.moveToTop();
+    this.labelRef.current?.show();
   };
 
   onMouseLeave = ({ currentTarget }: KonvaEventObject<MouseEvent>) => {
     if (CseMachine.getPrintableMode()) return;
-    if (!this.selected) {
-      this.labelRef.current.hide();
-    } else {
-      const container = currentTarget.getStage()?.container();
-      container && (container.style.cursor = 'default');
-    }
-  };
-  onClick = ({ currentTarget }: KonvaEventObject<MouseEvent>) => {
-    if (CseMachine.getPrintableMode()) return;
-    this.selected = !this.selected;
-    if (!this.selected) {
-      this.labelRef.current.hide();
-    } else {
-      this.labelRef.current.show();
-    }
+    setUnhoveredCursor(currentTarget);
+    this.labelRef.current?.hide();
   };
 
   draw(): React.ReactNode {
-    this._isDrawn = true;
-    this._arrow =
-      this.enclosingEnvNode.frame && new ArrowFromFn(this).to(this.enclosingEnvNode.frame);
+    if (this.fnName === undefined) {
+      throw new Error('Closure has no main reference and is not initialised!');
+    }
+    if (this.enclosingFrame) {
+      this._arrow = new ArrowFromFn(this).to(this.enclosingFrame) as ArrowFromFn;
+    }
+    const textColor = this.isReferenced() ? defaultTextColor() : fadedTextColor();
+    const strokeColor = this.isReferenced() ? defaultStrokeColor() : fadedStrokeColor();
     return (
       <React.Fragment key={Layout.key++}>
-        <Group
-          onMouseEnter={e => this.onMouseEnter(e)}
-          onMouseLeave={e => this.onMouseLeave(e)}
-          onClick={e => this.onClick(e)}
-          ref={this.ref}
-        >
+        <Group onMouseEnter={this.onMouseEnter} onMouseLeave={this.onMouseLeave} ref={this.ref}>
           <Circle
             {...ShapeDefaultProps}
             key={Layout.key++}
             x={this.centerX - this.radius}
             y={this.y()}
             radius={this.radius}
-            stroke={
-              CseMachine.getPrintableMode() ? Config.SA_BLUE.toString() : Config.SA_WHITE.toString()
-            }
+            stroke={strokeColor}
           />
           <Circle
             {...ShapeDefaultProps}
@@ -182,9 +151,7 @@ export class FnValue extends Value implements IHoverable {
             x={this.centerX - this.radius}
             y={this.y()}
             radius={this.innerRadius}
-            fill={
-              CseMachine.getPrintableMode() ? Config.SA_BLUE.toString() : Config.SA_WHITE.toString()
-            }
+            fill={strokeColor}
           />
           <Circle
             {...ShapeDefaultProps}
@@ -192,9 +159,7 @@ export class FnValue extends Value implements IHoverable {
             x={this.centerX + this.radius}
             y={this.y()}
             radius={this.radius}
-            stroke={
-              CseMachine.getPrintableMode() ? Config.SA_BLUE.toString() : Config.SA_WHITE.toString()
-            }
+            stroke={strokeColor}
           />
           <Circle
             {...ShapeDefaultProps}
@@ -202,46 +167,33 @@ export class FnValue extends Value implements IHoverable {
             x={this.centerX + this.radius}
             y={this.y()}
             radius={this.innerRadius}
-            fill={
-              CseMachine.getPrintableMode() ? Config.SA_BLUE.toString() : Config.SA_WHITE.toString()
-            }
+            fill={strokeColor}
           />
         </Group>
-        {CseMachine.getPrintableMode() ? (
-          <KonvaLabel
-            x={this.x() + this.width() + Config.TextPaddingX * 2}
-            y={this.y() - Config.TextPaddingY}
-            visible={true}
-            ref={this.labelRef}
-          >
-            <KonvaTag stroke="black" fill={'white'} opacity={Number(Config.FnTooltipOpacity)} />
-            <KonvaText
-              text={this.exportTooltip}
-              fontFamily={Config.FontFamily.toString()}
-              fontSize={Number(Config.FontSize)}
-              fontStyle={Config.FontStyle.toString()}
-              fill={Config.SA_BLUE.toString()}
-              padding={5}
+        <KonvaLabel
+          x={this.x() + this.width() + Config.TextPaddingX * 2}
+          y={this.y() - Config.TextPaddingY}
+          visible={CseMachine.getPrintableMode()}
+          ref={this.labelRef}
+        >
+          {CseMachine.getPrintableMode() ? (
+            <KonvaTag stroke={strokeColor} />
+          ) : (
+            <KonvaTag
+              stroke={Config.HoverBgColor}
+              fill={Config.HoverBgColor}
+              opacity={Config.FnTooltipOpacity}
             />
-          </KonvaLabel>
-        ) : (
-          <KonvaLabel
-            x={this.x() + this.width() + Config.TextPaddingX * 2}
-            y={this.y() - Config.TextPaddingY}
-            visible={false}
-            ref={this.labelRef}
-          >
-            <KonvaTag stroke="black" fill={'black'} opacity={Number(Config.FnTooltipOpacity)} />
-            <KonvaText
-              text={this.tooltip}
-              fontFamily={Config.FontFamily.toString()}
-              fontSize={Number(Config.FontSize)}
-              fontStyle={Config.FontStyle.toString()}
-              fill={Config.SA_WHITE.toString()}
-              padding={5}
-            />
-          </KonvaLabel>
-        )}
+          )}
+          <KonvaText
+            text={CseMachine.getPrintableMode() ? this.exportTooltip : this.tooltip}
+            fontFamily={Config.FontFamily}
+            fontSize={Config.FontSize}
+            fontStyle={Config.FontStyle}
+            fill={textColor}
+            padding={5}
+          />
+        </KonvaLabel>
         {this._arrow?.draw()}
       </React.Fragment>
     );

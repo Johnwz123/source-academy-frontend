@@ -6,6 +6,7 @@ import { AssetKey, ItemId } from '../commons/CommonTypes';
 import { Dialogue } from '../dialogue/GameDialogueTypes';
 import { GameMode } from '../mode/GameModeTypes';
 import { ObjectProperty } from '../objects/GameObjectTypes';
+import { Quiz } from '../quiz/GameQuizType';
 import { mandatory } from '../utils/GameUtils';
 import { AnyId, GameItemType, GameLocation, LocationId } from './GameMapTypes';
 
@@ -36,6 +37,7 @@ class GameMap {
   private actions: Map<ItemId, GameAction>;
   private gameStartActions: ItemId[];
   private checkpointCompleteActions: ItemId[];
+  private quizzes: Map<ItemId, Quiz>;
 
   constructor() {
     this.soundAssets = [];
@@ -47,6 +49,7 @@ class GameMap {
     this.boundingBoxes = new Map<ItemId, BBoxProperty>();
     this.characters = new Map<ItemId, Character>();
     this.actions = new Map<ItemId, GameAction>();
+    this.quizzes = new Map<ItemId, Quiz>();
 
     this.gameStartActions = [];
     this.checkpointCompleteActions = [];
@@ -120,16 +123,23 @@ class GameMap {
     return this.actions;
   }
 
+  public getQuizMap(): Map<ItemId, Quiz> {
+    return this.quizzes;
+  }
+
   public getSoundAssets(): SoundAsset[] {
     return this.soundAssets;
   }
 
   public setItemInMap(gameItemType: GameItemType, itemId: string, item: any) {
+    // @ts-expect-error TS 5.0, violating abstraction of class and object using .set
     this[gameItemType].set(itemId, item);
   }
 
   public addItemToLocation(locId: LocationId, gameItemType: GameItemType, itemId: string) {
-    this.getLocationAtId(locId)[gameItemType].add(itemId);
+    const location = this.getLocationAtId(locId);
+    const items = location[gameItemType as keyof typeof location];
+    (items as Set<any>).add(itemId);
   }
 
   public setBGMusicAt(locId: LocationId, soundKey: AssetKey) {

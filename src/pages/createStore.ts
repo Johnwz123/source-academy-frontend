@@ -2,9 +2,10 @@ import { configureStore } from '@reduxjs/toolkit';
 import { setAutoFreeze } from 'immer';
 import { throttle } from 'lodash';
 import createSagaMiddleware from 'redux-saga';
+import { SourceActionType } from 'src/commons/utils/ActionsHelper';
 
 import { defaultState, OverallState } from '../commons/application/ApplicationTypes';
-import createRootReducer from '../commons/application/reducers/RootReducer';
+import rootReducer from '../commons/application/reducers/RootReducer';
 import MainSaga from '../commons/sagas/MainSaga';
 import { generateOctokitInstance } from '../commons/utils/GitHubPersistenceHelper';
 import { loadStoredState, SavedState, saveState } from './localStorage';
@@ -19,8 +20,8 @@ export function createStore() {
   const middleware = [sagaMiddleware];
   const initialStore = loadStore(loadStoredState()) || defaultState;
 
-  const createdStore = configureStore<OverallState>({
-    reducer: createRootReducer(),
+  const createdStore = configureStore<OverallState, SourceActionType>({
+    reducer: rootReducer,
     // Fix for redux-saga type incompatibility
     // See: https://github.com/reduxjs/redux-toolkit/issues/3950
     middleware: middleware as any,

@@ -1,9 +1,12 @@
-import { action } from 'typesafe-actions';
+import { createActions } from 'src/commons/redux/utils';
 
-import { GITHUB_OPEN_FILE, GITHUB_SAVE_FILE, GITHUB_SAVE_FILE_AS } from './GitHubTypes';
+const newActions = createActions('github', {
+  githubOpenFile: () => ({}),
+  githubSaveFile: () => ({}),
+  githubSaveFileAs: () => ({})
+});
 
-export const githubOpenFile = () => action(GITHUB_OPEN_FILE);
-
-export const githubSaveFile = () => action(GITHUB_SAVE_FILE);
-
-export const githubSaveFileAs = () => action(GITHUB_SAVE_FILE_AS);
+// For compatibility with existing code (actions helper)
+export default {
+  ...newActions
+};

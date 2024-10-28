@@ -33,6 +33,7 @@ class GameStateManager {
   private checkpointObjective: GameObjective;
   private checkpointTask: GameTask;
   private chapterNewlyCompleted: boolean;
+  private quizScores: Map<ItemId, number>;
 
   // Triggered Interactions
   private updatedLocations: Set<LocationId>;
@@ -46,6 +47,7 @@ class GameStateManager {
     this.checkpointObjective = gameCheckpoint.objectives;
     this.checkpointTask = gameCheckpoint.tasks;
     this.chapterNewlyCompleted = false;
+    this.quizScores = new Map<ItemId, number>();
 
     this.updatedLocations = new Set(this.gameMap.getLocationIds());
     this.triggeredInteractions = new Map<ItemId, boolean>();
@@ -81,6 +83,8 @@ class GameStateManager {
         this.checkpointTask.setTask(task, false);
         this.checkpointTask.showTask(task);
       });
+
+    this.quizScores = new Map(this.getSaveManager().getQuizScores());
 
     this.chapterNewlyCompleted = this.getSaveManager().getChapterNewlyCompleted();
   }
@@ -205,7 +209,9 @@ class GameStateManager {
    */
   public addLocationMode(locationId: LocationId, mode: GameMode) {
     this.gameMap.getLocationAtId(locationId).modes.add(mode);
-    !this.isCurrentLocation(locationId) && this.addLocationNotif(locationId);
+    if (!this.isCurrentLocation(locationId)) {
+      this.addLocationNotif(locationId);
+    }
   }
 
   /**
@@ -217,7 +223,9 @@ class GameStateManager {
    */
   public removeLocationMode(locationId: LocationId, mode: GameMode) {
     this.gameMap.getLocationAtId(locationId).modes.delete(mode);
-    !this.isCurrentLocation(locationId) && this.addLocationNotif(locationId);
+    if (!this.isCurrentLocation(locationId)) {
+      this.addLocationNotif(locationId);
+    }
   }
 
   ///////////////////////////////
@@ -232,7 +240,10 @@ class GameStateManager {
    * @returns {ItemId[]} items IDS of all game items of that type in the location
    */
   public getGameItemsInLocation(gameItemType: GameItemType, locationId: LocationId): ItemId[] {
-    return Array.from(this.gameMap.getLocationAtId(locationId)[gameItemType]) || [];
+    const location = this.gameMap.getLocationAtId(locationId);
+    const items = location[gameItemType as keyof typeof location];
+    // Non-strict equality check to match both null and undefined
+    return items == undefined ? [] : Array.from(items);
   }
 
   /**
@@ -245,11 +256,15 @@ class GameStateManager {
    * @param itemId item ID to be added
    */
   public addItem(gameItemType: GameItemType, locationId: LocationId, itemId: ItemId) {
-    this.gameMap.getLocationAtId(locationId)[gameItemType]?.add(itemId);
+    const location = this.gameMap.getLocationAtId(locationId);
+    const items = location[gameItemType as keyof typeof location];
+    (items as Set<any> | undefined)?.add(itemId);
 
-    this.isCurrentLocation(locationId)
-      ? this.getSubscriberForItemType(gameItemType)?.handleAdd(itemId)
-      : this.addLocationNotif(locationId);
+    if (this.isCurrentLocation(locationId)) {
+      this.getSubscriberForItemType(gameItemType)?.handleAdd(itemId);
+    } else {
+      this.addLocationNotif(locationId);
+    }
   }
 
   /**
@@ -263,11 +278,15 @@ class GameStateManager {
    * @param itemId item ID to be removed
    */
   public removeItem(gameItemType: GameItemType, locationId: LocationId, itemId: string) {
-    this.gameMap.getLocationAtId(locationId)[gameItemType]?.delete(itemId);
+    const location = this.gameMap.getLocationAtId(locationId);
+    const items = location[gameItemType as keyof typeof location];
+    (items as Set<any> | undefined)?.delete(itemId);
 
-    this.isCurrentLocation(locationId)
-      ? this.getSubscriberForItemType(gameItemType)?.handleDelete(itemId)
-      : this.addLocationNotif(locationId);
+    if (this.isCurrentLocation(locationId)) {
+      this.getSubscriberForItemType(gameItemType)?.handleDelete(itemId);
+    } else {
+      this.addLocationNotif(locationId);
+    }
   }
 
   /**
@@ -284,9 +303,11 @@ class GameStateManager {
     this.gameMap.getLocations().forEach((location, locId) => {
       if (!location.objects.has(id)) return;
 
-      this.isCurrentLocation(locId)
-        ? this.getSubscriberForItemType(GameItemType.objects)?.handleMutate(id)
-        : this.addLocationNotif(locId);
+      if (this.isCurrentLocation(locId)) {
+        this.getSubscriberForItemType(GameItemType.objects)?.handleMutate(id);
+      } else {
+        this.addLocationNotif(locId);
+      }
     });
   }
 
@@ -304,9 +325,11 @@ class GameStateManager {
     this.gameMap.getLocations().forEach((location, locId) => {
       if (!location.boundingBoxes.has(id)) return;
 
-      this.isCurrentLocation(locId)
-        ? this.getSubscriberForItemType(GameItemType.boundingBoxes)?.handleMutate(id)
-        : this.addLocationNotif(locId);
+      if (this.isCurrentLocation(locId)) {
+        this.getSubscriberForItemType(GameItemType.boundingBoxes)?.handleMutate(id);
+      } else {
+        this.addLocationNotif(locId);
+      }
     });
   }
 
@@ -344,9 +367,11 @@ class GameStateManager {
     this.gameMap.getLocations().forEach((location, locId) => {
       if (!location.characters.has(id)) return;
 
-      this.isCurrentLocation(locId)
-        ? this.getSubscriberForItemType(GameItemType.characters)?.handleMutate(id)
-        : this.addLocationNotif(locId);
+      if (this.isCurrentLocation(locId)) {
+        this.getSubscriberForItemType(GameItemType.characters)?.handleMutate(id);
+      } else {
+        this.addLocationNotif(locId);
+      }
     });
   }
 
@@ -448,6 +473,52 @@ class GameStateManager {
   }
 
   ///////////////////////////////
+  //          Quiz             //
+  ///////////////////////////////
+
+  /**
+   * Checks whether a quiz has been obtained full marks.
+   *
+   * @param key quiz id
+   * @returns {boolean}
+   */
+  public isQuizComplete(quizId: string): boolean {
+    return this.quizScores.get(quizId) === GameGlobalAPI.getInstance().getQuizLength(quizId);
+  }
+
+  /**
+   * Checks whether a specific quiz has been played.
+   *
+   * @param key quiz id
+   * @returns {boolean}
+   */
+  public isQuizAttempted(quizId: string): boolean {
+    return this.quizScores.has(quizId);
+  }
+
+  /**
+   * Get the score of a quiz.
+   * Return 0 if the quiz has not been played.
+   *
+   * @param quizId
+   * @returns
+   */
+  public getQuizScore(quizId: ItemId): number {
+    const score = this.quizScores.get(quizId);
+    return score ?? 0;
+  }
+
+  /**
+   * Set the score of a quiz to a given number.
+   *
+   * @param quizId The id of the quiz.
+   * @param newScore The new score to be set.
+   */
+  public setQuizScore(quizId: string, newScore: number) {
+    this.quizScores.set(quizId, newScore);
+  }
+
+  ///////////////////////////////
   //          Saving           //
   ///////////////////////////////
 
@@ -495,6 +566,16 @@ class GameStateManager {
    */
   public getTriggeredStateChangeActions(): string[] {
     return this.triggeredStateChangeActions;
+  }
+
+  /**
+   * Return an array containing [string, number] pairs
+   * representing quizzes and the corresponding scores.
+   *
+   * @returns {[string, number][]}
+   */
+  public getQuizScores(): [string, number][] {
+    return [...this.quizScores];
   }
 
   public getGameMap = () => this.gameMap;

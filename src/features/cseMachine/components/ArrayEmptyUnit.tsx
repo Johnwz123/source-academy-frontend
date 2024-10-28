@@ -1,19 +1,16 @@
-import React, { RefObject } from 'react';
+import React from 'react';
 import { Rect } from 'react-konva';
 
-import CseMachine from '../CseMachine';
-import { Config, ShapeDefaultProps } from '../CseMachineConfig';
+import { ShapeDefaultProps } from '../CseMachineConfig';
 import { Layout } from '../CseMachineLayout';
-import { Data } from '../CseMachineTypes';
+import { defaultStrokeColor, fadedStrokeColor } from '../CseMachineUtils';
 import { ArrayValue } from './values/ArrayValue';
 import { Visible } from './Visible';
 
 /** this classes encapsulates an empty array */
 export class ArrayEmptyUnit extends Visible {
   readonly value: null = null;
-
-  readonly data: Data = [];
-  ref: RefObject<any> = React.createRef();
+  readonly data = undefined;
 
   constructor(readonly parent: ArrayValue) {
     super();
@@ -22,11 +19,6 @@ export class ArrayEmptyUnit extends Visible {
     this._height = this.parent.height();
     this._width = this.parent.width();
   }
-
-  updatePosition = () => {
-    this._x = this.parent.x();
-    this._y = this.parent.y();
-  };
 
   draw(): React.ReactNode {
     return (
@@ -37,9 +29,7 @@ export class ArrayEmptyUnit extends Visible {
         y={this.y()}
         width={this.width()}
         height={this.height()}
-        stroke={
-          CseMachine.getPrintableMode() ? Config.SA_BLUE.toString() : Config.SA_WHITE.toString()
-        }
+        stroke={this.parent.isReferenced() ? defaultStrokeColor() : fadedStrokeColor()}
         ref={this.ref}
       />
     );

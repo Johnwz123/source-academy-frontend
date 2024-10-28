@@ -1,4 +1,6 @@
 import { call } from 'redux-saga/effects';
+import { backendParamsToProgressStatus } from 'src/features/grading/GradingUtils';
+import { OptionType } from 'src/pages/academy/teamFormation/subcomponents/TeamFormationForm';
 
 import {
   AchievementGoal,
@@ -20,6 +22,7 @@ import {
   WebSocketEndpointInformation
 } from '../../features/remoteExecution/RemoteExecutionTypes';
 import { PlaybackData, SourcecastData } from '../../features/sourceRecorder/SourceRecorderTypes';
+import { TeamFormationOverview } from '../../features/teamFormation/TeamFormationTypes';
 import { UsernameRoleGroup } from '../../pages/academy/adminPanel/subcomponents/AddUserPanel';
 import { store } from '../../pages/createStore';
 import {
@@ -34,9 +37,6 @@ import {
   AdminPanelCourseRegistration,
   CourseConfiguration,
   CourseRegistration,
-  NotificationConfiguration,
-  NotificationPreference,
-  TimeOption,
   Tokens,
   UpdateCourseConfiguration,
   User
@@ -46,7 +46,6 @@ import {
   AssessmentConfiguration,
   AssessmentOverview,
   ContestEntry,
-  GradingStatus,
   IContestVotingQuestion,
   IProgrammingQuestion,
   QuestionType,
@@ -57,6 +56,9 @@ import { castLibrary } from '../utils/CastBackend';
 import Constants from '../utils/Constants';
 import { showWarningMessage } from '../utils/notifications/NotificationsHelper';
 import { request } from '../utils/RequestHelper';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const XLSX = require('xlsx');
 
 /**
  * GET /
@@ -422,13 +424,8 @@ export const getAssessmentOverviews = async (
     return null; // invalid accessToken _and_ refreshToken
   }
   const assessmentOverviews = await resp.json();
+
   return assessmentOverviews.map((overview: any) => {
-    overview.gradingStatus = computeGradingStatus(
-      overview.isManuallyGraded,
-      overview.status,
-      overview.gradedCount,
-      overview.questionCount
-    );
     delete overview.gradedCount;
     delete overview.questionCount;
 
@@ -475,12 +472,6 @@ export const getUserAssessmentOverviews = async (
   }
   const assessmentOverviews = await resp.json();
   return assessmentOverviews.map((overview: any) => {
-    overview.gradingStatus = computeGradingStatus(
-      overview.isManuallyGraded,
-      overview.status,
-      overview.gradedCount,
-      overview.questionCount
-    );
     delete overview.gradedCount;
     delete overview.questionCount;
 
@@ -589,6 +580,32 @@ export const postAnswer = async (
 };
 
 /**
+ * POST /courses/{courseId}/assessments/question/{questionId}/answer
+ */
+export const checkAnswerLastModifiedAt = async (
+  id: number,
+  lastModifiedAt: string,
+  tokens: Tokens
+): Promise<boolean | null> => {
+  const resp = await request(
+    `${courseId()}/assessments/question/${id}/answerLastModified`,
+    'POST',
+    {
+      ...tokens,
+      body: {
+        lastModifiedAt: lastModifiedAt
+      },
+      noHeaderAccept: true
+    }
+  );
+  if (!resp) {
+    return null; // invalid accessToken _and_ refreshToken
+  }
+  const answerIsModified = await resp.json();
+  return answerIsModified.lastModified;
+};
+
+/**
  * POST /courses/{courseId}/assessments/{assessmentId}/submit
  */
 export const postAssessment = async (id: number, tokens: Tokens): Promise<Response | null> => {
@@ -608,10 +625,11 @@ export const getGradingOverviews = async (
   group: boolean,
   graded: Record<string, any> | undefined,
   pageParams: Record<string, any>,
-  filterParams: Record<string, any>
+  filterParams: Record<string, any>,
+  sortedBy: Record<string, any>
 ): Promise<GradingOverviews | null> => {
   // gradedQuery placed behind filterQuery to override progress filter if any
-  const params = new URLSearchParams({ ...pageParams, ...filterParams, ...graded });
+  const params = new URLSearchParams({ ...pageParams, ...filterParams, ...graded, ...sortedBy });
   params.append('group', `${group}`);
 
   const resp = await request(`${courseId()}/admin/grading?${params.toString()}`, 'GET', {
@@ -624,45 +642,240 @@ export const getGradingOverviews = async (
 
   return {
     count: gradingOverviews.count,
-    data: gradingOverviews.data
-      .map((overview: any) => {
-        const gradingOverview: GradingOverview = {
-          assessmentId: overview.assessment.id,
-          assessmentNumber: overview.assessment.assessmentNumber,
-          assessmentName: overview.assessment.title,
-          assessmentType: overview.assessment.type,
-          studentId: overview.student.id,
-          studentUsername: overview.student.username,
-          studentName: overview.student.name,
-          submissionId: overview.id,
-          submissionStatus: overview.status,
-          groupName: overview.student.groupName,
-          groupLeaderId: overview.student.groupLeaderId,
-          // Grading Status
-          gradingStatus: 'none',
-          questionCount: overview.assessment.questionCount,
-          gradedCount: overview.gradedCount,
-          // XP
-          initialXp: overview.xp,
-          xpAdjustment: overview.xpAdjustment,
-          currentXp: overview.xp + overview.xpAdjustment,
-          maxXp: overview.assessment.maxXp,
-          xpBonus: overview.xpBonus
-        };
-        gradingOverview.gradingStatus = computeGradingStatus(
+    data: gradingOverviews.data.map((overview: any) => {
+      const gradingOverview: GradingOverview = {
+        assessmentId: overview.assessment.id,
+        assessmentNumber: overview.assessment.assessmentNumber,
+        assessmentName: overview.assessment.title,
+        assessmentType: overview.assessment.type,
+        studentId: overview.student ? overview.student.id : -1,
+        studentName: overview.student ? overview.student.name : undefined,
+        studentNames: overview.team
+          ? overview.team.team_members.map((member: { name: any }) => member.name)
+          : undefined,
+        studentUsername: overview.student ? overview.student.username : undefined,
+        studentUsernames: overview.team
+          ? overview.team.team_members.map((member: { username: any }) => member.username)
+          : undefined,
+        submissionId: overview.id,
+        submissionStatus: overview.status,
+        groupName: overview.student ? overview.student.groupName : '-',
+        groupLeaderId: overview.student ? overview.student.groupLeaderId : undefined,
+        isGradingPublished: overview.isGradingPublished,
+        progress: backendParamsToProgressStatus(
           overview.assessment.isManuallyGraded,
-          gradingOverview.submissionStatus,
-          gradingOverview.gradedCount,
-          gradingOverview.questionCount
-        );
-        return gradingOverview;
-      })
-      .sort((subX: GradingOverview, subY: GradingOverview) =>
-        subX.assessmentId !== subY.assessmentId
-          ? subY.assessmentId - subX.assessmentId
-          : subY.submissionId - subX.submissionId
-      )
+          overview.isGradingPublished,
+          overview.status,
+          overview.gradedCount,
+          overview.assessment.questionCount
+        ),
+        questionCount: overview.assessment.questionCount,
+        gradedCount: overview.gradedCount,
+        // XP
+        initialXp: overview.xp,
+        xpAdjustment: overview.xpAdjustment,
+        currentXp: overview.xp + overview.xpAdjustment,
+        maxXp: overview.assessment.maxXp,
+        xpBonus: overview.xpBonus
+      };
+      return gradingOverview;
+    })
   };
+};
+
+/*
+ * GET /courses/{courseId}/admin/teams
+ */
+export const getTeamFormationOverviews = async (
+  tokens: Tokens
+): Promise<TeamFormationOverview[] | null> => {
+  const resp = await request(`${courseId()}/admin/teams`, 'GET', {
+    ...tokens
+  });
+  if (!resp) {
+    return null; // invalid accessToken _and_ refreshToken
+  }
+  const teamFormationOverviews = await resp.json();
+  return teamFormationOverviews
+    .map((overview: any) => {
+      const teamFormationOverview: TeamFormationOverview = {
+        teamId: overview.teamId,
+        assessmentId: overview.assessmentId,
+        assessmentName: overview.assessmentName,
+        assessmentType: overview.assessmentType,
+        studentIds: overview.studentIds,
+        studentNames: overview.studentNames
+      };
+      return teamFormationOverview;
+    })
+    .sort(
+      (subX: TeamFormationOverview, subY: TeamFormationOverview) =>
+        subY.assessmentId - subX.assessmentId
+    );
+};
+
+/*
+ * GET /courses/{courseId}/team/{assessmentId}
+ */
+export const getTeamFormationOverview = async (
+  assessmentId: number,
+  tokens: Tokens
+): Promise<TeamFormationOverview | null> => {
+  const resp = await request(`${courseId()}/team/${assessmentId}`, 'GET', {
+    ...tokens
+  });
+  if (!resp) {
+    return null; // invalid accessToken _and_ refreshToken
+  }
+  const team = await resp.json();
+  const teamFormationOverview: TeamFormationOverview = {
+    teamId: team.teamId,
+    assessmentId: team.assessmentId,
+    assessmentName: team.assessmentName,
+    assessmentType: team.assessmentType,
+    studentIds: team.studentIds,
+    studentNames: team.studentNames
+  };
+  return teamFormationOverview;
+};
+
+/*
+ * POST /courses/{courseId}/admin/teams
+ */
+export const postTeams = async (
+  assessmentId: number,
+  teams: OptionType[][],
+  tokens: Tokens
+): Promise<Response | null> => {
+  const data = {
+    team: {
+      assessment_id: assessmentId,
+      student_ids: teams.map(team => team.map(option => option?.value))
+    }
+  };
+
+  const resp = await request(`${courseId()}/admin/teams`, 'POST', {
+    body: data,
+    ...tokens
+  });
+  return resp;
+};
+
+type CsvData = string[][];
+
+/*
+ * POST /courses/{courseId}/admin/teams
+ */
+export const postUploadTeams = async (
+  assessmentId: number,
+  teams: File,
+  students: User[] | undefined,
+  tokens: Tokens
+): Promise<Response | null> => {
+  const parsed_teams: OptionType[][] = [];
+
+  const teamsArrayBuffer = await readFileAsArrayBuffer(teams);
+  const workbook = XLSX.read(teamsArrayBuffer, { type: 'array' });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const csvData: CsvData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+  for (let i = 0; i < csvData.length; i++) {
+    const studentNames = csvData[i];
+    const team: OptionType[] = [];
+    studentNames.forEach((username: string) => {
+      const student = students?.find((s: any) => s.username.trim() === username.trim());
+      if (student) {
+        team.push({
+          label: student.name,
+          value: student
+        });
+      }
+    });
+    parsed_teams.push(team);
+  }
+
+  const data = {
+    team: {
+      assessment_id: assessmentId,
+      student_ids: parsed_teams.map(team => team.map(option => option?.value))
+    }
+  };
+
+  const resp = await request(`${courseId()}/admin/teams`, 'POST', {
+    body: data,
+    ...tokens
+  });
+  return resp;
+};
+
+const readFileAsArrayBuffer = async (file: File): Promise<ArrayBuffer> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = event => {
+      if (event.target) {
+        const result = event.target.result as ArrayBuffer;
+        resolve(result);
+      } else {
+        reject(new Error('Error reading file'));
+      }
+    };
+    reader.onerror = event => {
+      reject(new Error('Error reading file'));
+    };
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+/*
+ * PUT /courses/{courseId}/admin/teams/{teamId}
+ */
+export const putTeams = async (
+  assessmentId: number,
+  teamId: number,
+  teams: OptionType[][],
+  tokens: Tokens
+): Promise<Response | null> => {
+  const data = {
+    teamId: teamId,
+    assessmentId: assessmentId,
+    student_ids: teams.map(team => team.map(option => option?.value))
+  };
+
+  const resp = await request(`${courseId()}/admin/teams/${teamId}`, 'PUT', {
+    body: data,
+    ...tokens
+  });
+  return resp;
+};
+
+/*
+ * DELETE /courses/{courseId}/admin/teams/{teamId}
+ */
+export const deleteTeam = async (teamId: number, tokens: Tokens): Promise<Response | null> => {
+  const data = {
+    teamId: teamId
+  };
+
+  const resp = await request(`${courseId()}/admin/teams/${teamId}`, 'DELETE', {
+    body: data,
+    ...tokens
+  });
+  return resp;
+};
+
+/*
+ * GET /courses/{courseId}/admin/users/teamformation
+ */
+export const getStudents = async (tokens: Tokens): Promise<User[] | null> => {
+  const resp = await request(`${courseId()}/admin/users/teamformation`, 'GET', {
+    ...tokens
+  });
+  if (!resp || !resp.ok) {
+    return null;
+  }
+
+  return await resp.json();
 };
 
 /**
@@ -682,10 +895,11 @@ export const getGrading = async (
 
   const gradingResult = await resp.json();
   const grading: GradingAnswer = gradingResult.answers.map((gradingQuestion: any) => {
-    const { student, question, grade } = gradingQuestion;
+    const { student, question, grade, team } = gradingQuestion;
     const result = {
       question: {
         answer: question.answer,
+        lastModifiedAt: question.lastModifiedAt,
         autogradingResults: question.autogradingResults || [],
         choices: question.choices,
         content: question.content,
@@ -700,6 +914,7 @@ export const getGrading = async (
         maxXp: question.maxXp
       },
       student,
+      team,
       grade: {
         xp: grade.xp,
         xpAdjustment: grade.xpAdjustment,
@@ -784,6 +999,64 @@ export const postUnsubmit = async (
   tokens: Tokens
 ): Promise<Response | null> => {
   const resp = await request(`${courseId()}/admin/grading/${submissionId}/unsubmit`, 'POST', {
+    ...tokens,
+    noHeaderAccept: true
+  });
+
+  return resp;
+};
+
+/**
+ * POST /courses/{courseId}/admin/grading/{submissionId}/publish_grades
+ */
+export const publishGrading = async (
+  submissionId: number,
+  tokens: Tokens
+): Promise<Response | null> => {
+  const resp = await request(`${courseId()}/admin/grading/${submissionId}/publish_grades`, 'POST', {
+    ...tokens,
+    noHeaderAccept: true
+  });
+
+  return resp;
+};
+
+/**
+ * POST /courses/{course_id}/admin/grading/{assessmentid}/publish_all_grades
+ */
+export const publishGradingAll = async (id: number, tokens: Tokens): Promise<Response | null> => {
+  const resp = await request(`${courseId()}/admin/grading/${id}/publish_all_grades`, 'POST', {
+    ...tokens,
+    noHeaderAccept: true
+  });
+
+  return resp;
+};
+
+/**
+ * POST /courses/{courseId}/admin/grading/{submissionId}/unpublish_grades
+ */
+export const unpublishGrading = async (
+  submissionId: number,
+  tokens: Tokens
+): Promise<Response | null> => {
+  const resp = await request(
+    `${courseId()}/admin/grading/${submissionId}/unpublish_grades`,
+    'POST',
+    {
+      ...tokens,
+      noHeaderAccept: true
+    }
+  );
+
+  return resp;
+};
+
+/**
+ * POST /courses/{course_id}/admin/grading/{assessmentid}/unpublish_all_grades
+ */
+export const unpublishGradingAll = async (id: number, tokens: Tokens): Promise<Response | null> => {
+  const resp = await request(`${courseId()}/admin/grading/${id}/unpublish_all_grades`, 'POST', {
     ...tokens,
     noHeaderAccept: true
   });
@@ -894,11 +1167,61 @@ export const deleteSourcecastEntry = async (
 };
 
 /**
+ * GET /courses/{courseId}/admin/assessments/{assessmentId}/scoreLeaderboard
+ */
+export const getScoreLeaderboard = async (
+  assessmentId: number,
+  tokens: Tokens
+): Promise<ContestEntry[] | null> => {
+  const resp = await request(
+    `${courseId()}/admin/assessments/${assessmentId}/scoreLeaderboard`,
+    'GET',
+    {
+      ...tokens
+    }
+  );
+  if (!resp || !resp.ok) {
+    return null; // invalid accessToken _and_ refreshToken
+  }
+  const scoreLeaderboard = await resp.json();
+  return scoreLeaderboard as ContestEntry[];
+};
+
+/**
+ * GET /courses/{courseId}/admin/assessments/{assessmentId}/popularVoteLeaderboard
+ */
+export const getPopularVoteLeaderboard = async (
+  assessmentId: number,
+  tokens: Tokens
+): Promise<ContestEntry[] | null> => {
+  const resp = await request(
+    `${courseId()}/admin/assessments/${assessmentId}/popularVoteLeaderboard`,
+    'GET',
+    {
+      ...tokens
+    }
+  );
+  if (!resp || !resp.ok) {
+    return null; // invalid accessToken _and_ refreshToken
+  }
+  const popularVoteLeaderboard = await resp.json();
+  return popularVoteLeaderboard as ContestEntry[];
+};
+
+/**
  * POST /courses/{courseId}/admin/assessments/{assessmentId}
  */
 export const updateAssessment = async (
   id: number,
-  body: { openAt?: string; closeAt?: string; isPublished?: boolean },
+  body: {
+    openAt?: string;
+    closeAt?: string;
+    isPublished?: boolean;
+    maxTeamSize?: number;
+    hasTokenCounter?: boolean;
+    hasVotingFeatures?: boolean;
+    assignEntriesForVoting?: boolean;
+  },
   tokens: Tokens
 ): Promise<Response | null> => {
   const resp = await request(`${courseId()}/admin/assessments/${id}`, 'POST', {
@@ -1014,50 +1337,6 @@ export const putAssessmentConfigs = async (
   return resp;
 };
 
-export const putNotificationConfigs = async (
-  tokens: Tokens,
-  notificationConfigs: NotificationConfiguration[]
-) => {
-  return await request(`notifications/config`, 'PUT', {
-    ...tokens,
-    body: notificationConfigs,
-    noHeaderAccept: true
-  });
-};
-
-export const putTimeOption = async (
-  tokens: Tokens,
-  timeOption: TimeOption
-): Promise<Response | null> => {
-  const resp = await request(`notifications/options/${timeOption.id}`, 'PUT', {
-    ...tokens,
-    body: {
-      isDefault: timeOption.isDefault
-    },
-    noHeaderAccept: true
-  });
-
-  return resp;
-};
-
-export const postTimeOption = async (
-  tokens: Tokens,
-  timeOption: TimeOption,
-  notificationConfigId: number
-): Promise<Response | null> => {
-  const resp = await request(`notifications/options`, 'POST', {
-    ...tokens,
-    body: {
-      isDefault: timeOption.isDefault,
-      minutes: timeOption.minutes,
-      notification_config_id: notificationConfigId
-    },
-    noHeaderAccept: true
-  });
-
-  return resp;
-};
-
 /**
  * DELETE /courses/{courseId}/admin/config/assessment_config/{assessmentConfigId}
  */
@@ -1073,95 +1352,6 @@ export const removeAssessmentConfig = async (
       noHeaderAccept: true
     }
   );
-
-  return resp;
-};
-
-export const removeTimeOptions = async (
-  tokens: Tokens,
-  timeOptionIds: number[]
-): Promise<Response | null> => {
-  const resp = await request(`notifications/options`, 'DELETE', {
-    ...tokens,
-    body: timeOptionIds,
-    noHeaderAccept: true
-  });
-
-  return resp;
-};
-
-export const putTimeOptions = async (
-  tokens: Tokens,
-  timeOptions: TimeOption[]
-): Promise<Response | null> => {
-  const resp = await request(`notifications/options`, 'PUT', {
-    ...tokens,
-    body: timeOptions,
-    noHeaderAccept: true
-  });
-
-  return resp;
-};
-
-export const getNotificationConfigs = async (
-  tokens: Tokens
-): Promise<NotificationConfiguration[] | null> => {
-  const resp = await request(`notifications/config/${courseIdWithoutPrefix()}`, 'GET', {
-    ...tokens
-  });
-  if (!resp || !resp.ok) {
-    return null;
-  }
-
-  return await resp.json();
-};
-
-export const getConfigurableNotificationConfigs = async (
-  tokens: Tokens,
-  courseRegId: number
-): Promise<NotificationConfiguration[] | null> => {
-  const resp = await request(`notifications/config/user/${courseRegId}`, 'GET', {
-    ...tokens
-  });
-  if (!resp || !resp.ok) {
-    return null;
-  }
-
-  return await resp.json();
-};
-
-export const postNotificationPreference = async (
-  tokens: Tokens,
-  notiPref: NotificationPreference,
-  notificationConfigId: number,
-  courseRegId: number
-): Promise<Response | null> => {
-  const resp = await request(`notifications/preference`, 'POST', {
-    ...tokens,
-    body: {
-      is_enabled: notiPref.isEnabled,
-      time_option_id: notiPref.timeOptionId,
-      notification_config_id: notificationConfigId,
-      course_reg_id: courseRegId
-    },
-    noHeaderAccept: true
-  });
-
-  return resp;
-};
-
-export const putNotificationPreferences = async (
-  tokens: Tokens,
-  notiPrefs: NotificationPreference[],
-  courseRegId: number
-): Promise<Response | null> => {
-  const resp = await request(`notifications/preferences`, 'PUT', {
-    ...tokens,
-    body: notiPrefs.map(pref => {
-      return { ...pref, courseRegId: courseRegId };
-    }),
-    noHeaderAccept: true
-  });
 
   return resp;
 };
@@ -1329,28 +1519,6 @@ export async function deleteDevice(device: Pick<Device, 'id'>, tokens?: Tokens):
   return true;
 }
 
-/**
- * POST /chat
- */
-
-export async function chat(
-  tokens: Tokens,
-  payload: { role: string; content: string }[]
-): Promise<string> {
-  const response = await request(`chat`, 'POST', {
-    ...tokens,
-    body: { json: payload }
-  });
-  if (!response) {
-    throw new Error('Unknown error occurred.');
-  }
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(`Failed to chat to louis: ${message}`);
-  }
-  return response.text();
-}
-
 function fillTokens(tokens?: Tokens): Tokens {
   tokens = tokens || getTokensFromStore();
   if (!tokens) {
@@ -1387,22 +1555,6 @@ export function* handleResponseError(resp: Response | null): any {
 
   yield call(showWarningMessage, respText);
 }
-
-const computeGradingStatus = (
-  isManuallyGraded: boolean,
-  submissionStatus: any,
-  numGraded: number,
-  numQuestions: number
-): GradingStatus =>
-  // isGraded refers to whether the assessment type is graded or not, as specified in
-  // the respective assessment configuration
-  isManuallyGraded && submissionStatus === 'submitted'
-    ? numGraded === 0
-      ? 'none'
-      : numGraded === numQuestions
-      ? 'graded'
-      : 'grading'
-    : 'excluded';
 
 const courseId: () => string = () => {
   const id = store.getState().session.courseId;

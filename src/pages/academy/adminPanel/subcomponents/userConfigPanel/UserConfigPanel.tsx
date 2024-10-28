@@ -8,13 +8,18 @@ import { AdminPanelCourseRegistration } from 'src/commons/application/types/Sess
 import RolesCell from './RolesCell';
 import UserActionsCell from './UserActionsCell';
 
-export type UserConfigPanelProps = OwnProps;
-
-type OwnProps = {
+type Props = {
   courseRegId?: number;
   userCourseRegistrations?: AdminPanelCourseRegistration[];
   handleUpdateUserRole: (courseRegId: number, role: Role) => void;
   handleDeleteUserFromCourse: (courseRegId: number) => void;
+};
+
+const defaultColumnDefs: ColDef = {
+  flex: 1,
+  filter: true,
+  resizable: true,
+  sortable: true
 };
 
 /**
@@ -24,27 +29,17 @@ type OwnProps = {
  *   other admins can do so, to prevent a scenario where there are
  *   no admins left in a course)
  */
-const UserConfigPanel: React.FC<UserConfigPanelProps> = props => {
+const UserConfigPanel: React.FC<Props> = props => {
   const gridApi = React.useRef<GridApi>();
 
   const userCourseRegistrations = props.userCourseRegistrations?.map(e =>
     !e.name ? { ...e, name: '(user has yet to log in)' } : e
   );
 
-  const columnDefs: ColDef[] = [
-    {
-      headerName: 'Name',
-      field: 'name',
-      sort: 'asc'
-    },
-    {
-      headerName: 'Username',
-      field: 'username'
-    },
-    {
-      headerName: 'Group',
-      field: 'group'
-    },
+  const columnDefs: ColDef<AdminPanelCourseRegistration>[] = [
+    { headerName: 'Name', field: 'name', sort: 'asc' },
+    { headerName: 'Username', field: 'username' },
+    { headerName: 'Group', field: 'group' },
     {
       headerName: 'Role',
       field: 'role',
@@ -52,27 +47,19 @@ const UserConfigPanel: React.FC<UserConfigPanelProps> = props => {
       cellRendererParams: {
         courseRegId: props.courseRegId,
         handleUpdateUserRole: props.handleUpdateUserRole
-      },
-      width: 110
+      }
     },
     {
       headerName: 'Actions',
-      field: 'actions',
+      field: 'actions' as any,
       cellRenderer: UserActionsCell,
       cellRendererParams: {
         handleDeleteUserFromCourse: props.handleDeleteUserFromCourse
       },
-      width: 120,
       filter: false,
       resizable: false
     }
   ];
-
-  const defaultColumnDefs = {
-    filter: true,
-    resizable: true,
-    sortable: true
-  };
 
   const onGridReady = (params: GridReadyEvent) => {
     gridApi.current = params.api;
@@ -81,11 +68,10 @@ const UserConfigPanel: React.FC<UserConfigPanelProps> = props => {
   const grid = (
     <div className="Grid ag-grid-parent ag-theme-balham">
       <AgGridReact
-        domLayout={'autoHeight'}
+        domLayout="autoHeight"
         columnDefs={columnDefs}
         defaultColDef={defaultColumnDefs}
         onGridReady={onGridReady}
-        onGridSizeChanged={() => gridApi.current?.sizeColumnsToFit()}
         rowData={userCourseRegistrations}
         rowHeight={36}
         suppressCellFocus={true}

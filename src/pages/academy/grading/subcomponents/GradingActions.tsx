@@ -1,22 +1,24 @@
-import { Icon as BpIcon } from '@blueprintjs/core';
+import { Button, Icon, Tooltip } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
-import { Flex, Icon } from '@tremor/react';
+import React from 'react';
 import { useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
-import {
-  reautogradeSubmission,
-  unsubmitSubmission
-} from 'src/commons/application/actions/SessionActions';
+import SessionActions from 'src/commons/application/actions/SessionActions';
+import { ProgressStatus, ProgressStatuses } from 'src/commons/assessment/AssessmentTypes';
+import GradingFlex from 'src/commons/grading/GradingFlex';
 import { showSimpleConfirmDialog } from 'src/commons/utils/DialogHelper';
-import { useTypedSelector } from 'src/commons/utils/Hooks';
+import { useSession } from 'src/commons/utils/Hooks';
 
-type GradingActionsProps = {
+type Props = {
   submissionId: number;
+  style?: React.CSSProperties;
+  progress: ProgressStatus;
+  filterMode: boolean;
 };
 
-const GradingActions: React.FC<GradingActionsProps> = ({ submissionId }) => {
+const GradingActions: React.FC<Props> = ({ submissionId, style, progress, filterMode }) => {
   const dispatch = useDispatch();
-  const courseId = useTypedSelector(store => store.session.courseId);
+  const { courseId } = useSession();
 
   const handleReautogradeClick = async () => {
     const confirm = await showSimpleConfirmDialog({
@@ -30,7 +32,7 @@ const GradingActions: React.FC<GradingActionsProps> = ({ submissionId }) => {
       positiveLabel: 'Reautograde'
     });
     if (confirm) {
-      dispatch(reautogradeSubmission(submissionId));
+      dispatch(SessionActions.reautogradeSubmission(submissionId));
     }
   };
 
@@ -41,28 +43,94 @@ const GradingActions: React.FC<GradingActionsProps> = ({ submissionId }) => {
       positiveLabel: 'Unsubmit'
     });
     if (confirm) {
-      dispatch(unsubmitSubmission(submissionId));
+      dispatch(SessionActions.unsubmitSubmission(submissionId));
     }
   };
 
+  const handlePublishClick = async () => {
+    const confirm = await showSimpleConfirmDialog({
+      contents: "Publish this assessment's grading?",
+      positiveIntent: 'primary',
+      positiveLabel: 'Publish'
+    });
+    if (confirm) {
+      dispatch(SessionActions.publishGrading(submissionId));
+    }
+  };
+
+  const handleUnpublishClick = async () => {
+    const confirm = await showSimpleConfirmDialog({
+      contents: "Unpublish this assessment's grading?",
+      positiveIntent: 'primary',
+      positiveLabel: 'Unpublish'
+    });
+    if (confirm) {
+      dispatch(SessionActions.unpublishGrading(submissionId));
+    }
+  };
+
+  const isGraded = progress === ProgressStatuses.graded;
+  const isSubmitted = progress === ProgressStatuses.submitted;
+  const isPublished = progress === ProgressStatuses.published;
+
   return (
-    <Flex justifyContent="justify-start" spaceX="space-x-2">
-      <Link to={`/courses/${courseId}/grading/${submissionId}`}>
-        <Icon tooltip="Grade" icon={() => <BpIcon icon={IconNames.EDIT} />} variant="light" />
-      </Link>
+    <GradingFlex
+      justifyContent="flex-start"
+      className="grading-actions-btn-wrappers"
+      style={{ columnGap: '5px', ...style }}
+    >
+      {filterMode && (
+        <Link to={`/courses/${courseId}/grading/${submissionId}`}>
+          <GradingFlex alignItems="center" className="grading-action-icons grading-action-icons-bg">
+            <Tooltip content="Grade">
+              <Icon icon={IconNames.EDIT} />
+            </Tooltip>
+          </GradingFlex>
+        </Link>
+      )}
 
-      <button type="button" style={{ padding: 0 }} onClick={handleReautogradeClick}>
-        <Icon
-          tooltip="Reautograde"
-          icon={() => <BpIcon icon={IconNames.REFRESH} />}
-          variant="simple"
-        />
-      </button>
+      {(isGraded || isSubmitted) && (
+        <Button
+          className="grading-action-icons"
+          minimal
+          style={{ padding: 0 }}
+          onClick={handleReautogradeClick}
+        >
+          <Tooltip content="Reautograde">
+            <Icon icon={IconNames.REFRESH} />
+          </Tooltip>
+        </Button>
+      )}
 
-      <button type="button" style={{ padding: 0 }} onClick={handleUnsubmitClick}>
-        <Icon tooltip="Unsubmit" icon={() => <BpIcon icon={IconNames.UNDO} />} variant="simple" />
-      </button>
-    </Flex>
+      {(isGraded || isSubmitted) && (
+        <Button
+          className="grading-action-icons"
+          minimal
+          style={{ padding: 0 }}
+          onClick={handleUnsubmitClick}
+        >
+          <Tooltip content="Unsubmit">
+            <Icon icon={IconNames.UNDO} />
+          </Tooltip>
+        </Button>
+      )}
+
+      {isGraded && (
+        <Button className="grading-action-icons" minimal onClick={handlePublishClick}>
+          <Tooltip content="Publish">
+            <Icon icon={IconNames.SEND_TO_GRAPH} />
+          </Tooltip>
+        </Button>
+      )}
+
+      {isPublished && (
+        <Button className="grading-action-icons" minimal onClick={handleUnpublishClick}>
+          <Tooltip content="Unpublish">
+            <Icon icon={IconNames.EXCLUDE_ROW} />
+          </Tooltip>
+        </Button>
+      )}
+    </GradingFlex>
   );
 };
 

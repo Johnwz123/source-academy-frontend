@@ -5,10 +5,10 @@ import { Chapter, Variant } from 'js-slang/dist/types';
 import React from 'react';
 import AceEditor from 'react-ace';
 import ReactAce from 'react-ace/lib/ace';
-import MediaQuery from 'react-responsive';
 
 import { ExternalLibraryName } from '../application/types/ExternalTypes';
 import { getModeString, selectMode } from '../utils/AceHelper';
+import { useResponsive } from '../utils/Hooks';
 // source mode and chapter imported in Editor.tsx
 
 export type ReplInputProps = DispatchProps & StateProps & OwnProps;
@@ -34,11 +34,13 @@ type OwnProps = {
   replButtons: Array<JSX.Element | null>;
 };
 
-export const ReplInput: React.FC<ReplInputProps> = (props: ReplInputProps) => {
+export const ReplInput: React.FC<ReplInputProps> = props => {
   const { onFocus, onBlur } = props;
 
   const replInput = React.useRef<ReactAce>(null);
   const replInputBottom = React.useRef<HTMLDivElement>(null);
+
+  const { isDesktopBreakpoint } = useResponsive();
 
   const execBrowseHistoryDown: () => void = props.handleBrowseHistoryDown;
   const execBrowseHistoryUp: () => void = props.handleBrowseHistoryUp;
@@ -138,9 +140,7 @@ export const ReplInput: React.FC<ReplInputProps> = (props: ReplInputProps) => {
         ref={replInput}
       />
       <div className={classNames(Classes.BUTTON_GROUP, Classes.DARK)}>{replButtons()}</div>
-      <MediaQuery minWidth={769}>
-        <div ref={replInputBottom} />
-      </MediaQuery>
+      {isDesktopBreakpoint && <div ref={replInputBottom} />}
     </>
   );
 };

@@ -1,6 +1,5 @@
-import { Button, Collapse, Icon } from '@blueprintjs/core';
+import { Button, Collapse, Icon, Tooltip } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
-import { Tooltip2 } from '@blueprintjs/popover2';
 import React, { useMemo, useState } from 'react';
 
 import { ContestEntry } from '../../assessment/AssessmentTypes';
@@ -26,11 +25,9 @@ type StateProps = {
  * @param props {orderedContestEntries: an ordered list by desc score of leaderboard entries to display,
  *  handleContestEntryClick: displays contest entry answer in assessment workspace editor}
  */
-const SideContentContestLeaderboard: React.FunctionComponent<
-  SideContentContestLeaderboardProps
-> = props => {
+const SideContentContestLeaderboard: React.FC<SideContentContestLeaderboardProps> = props => {
   const { orderedContestEntries, handleContestEntryClick, leaderboardType } = props;
-  const [showLeaderboard, setShowLeaderboard] = useState<boolean>(true);
+  const [showLeaderboard, setShowLeaderboard] = useState(true);
 
   /**
    * Contest Leaderboard inner components
@@ -40,16 +37,16 @@ const SideContentContestLeaderboard: React.FunctionComponent<
     return leaderboardType === SideContentType.scoreLeaderboard
       ? 'Score Leaderboard'
       : leaderboardType === SideContentType.popularVoteLeaderboard
-      ? 'Popular Vote Leaderboard'
-      : 'Contest Leaderboard';
+        ? 'Popular Vote Leaderboard'
+        : 'Contest Leaderboard';
   }, [leaderboardType]);
 
   const contestLeaderboardTooltipContent = useMemo(() => {
     return leaderboardType === SideContentType.scoreLeaderboard
       ? 'View the highest scoring contest entries!'
       : leaderboardType === SideContentType.popularVoteLeaderboard
-      ? 'View the most popular contest entries!'
-      : 'View the top-rated contest entries!';
+        ? 'View the most popular contest entries!'
+        : 'View the top-rated contest entries!';
   }, [leaderboardType]);
 
   const columnHeader = (colClass: string, colTitle: string) => (
@@ -69,8 +66,8 @@ const SideContentContestLeaderboard: React.FunctionComponent<
           leaderboardType === SideContentType.scoreLeaderboard
             ? 'Calculated Score'
             : leaderboardType === SideContentType.popularVoteLeaderboard
-            ? 'Popularity Score'
-            : 'Metric'
+              ? 'Popularity Score'
+              : 'Metric'
         )}
       </div>
     );
@@ -106,9 +103,9 @@ const SideContentContestLeaderboard: React.FunctionComponent<
         onClick={() => setShowLeaderboard(!showLeaderboard)}
       >
         <span>{leaderboardTitle}</span>
-        <Tooltip2 content={contestLeaderboardTooltipContent}>
+        <Tooltip content={contestLeaderboardTooltipContent}>
           <Icon icon={IconNames.HELP} />
-        </Tooltip2>
+        </Tooltip>
       </Button>
       <Collapse isOpen={showLeaderboard} keepChildrenMounted>
         {contestEntryCards}

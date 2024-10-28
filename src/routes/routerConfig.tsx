@@ -1,8 +1,8 @@
 import { Navigate, redirect, RouteObject } from 'react-router';
+import Constants from 'src/commons/utils/Constants';
 
 import Application from '../commons/application/Application';
-import { Role } from '../commons/application/ApplicationTypes';
-import Constants from '../commons/utils/Constants';
+import { GuardedRoute } from './routeGuard';
 
 /**
  * Partial migration to be compatible with react-router v6.4 data loader APIs.
@@ -15,18 +15,20 @@ import Constants from '../commons/utils/Constants';
 
 // Conditionally allow access to route via `loader` instead of conditionally defining these routes in react-router v6.4.
 // See https://github.com/remix-run/react-router/discussions/10223#discussioncomment-5909050
-const conditionalLoader = (condition: boolean, redirectTo: string, returnValue?: any) => () => {
-  if (condition) {
-    return redirect(redirectTo);
-  }
-  return returnValue ?? null;
-};
+// const conditionalLoader = (condition: boolean, redirectTo: string, returnValue?: any) => () => {
+//   if (condition) {
+//     return redirect(redirectTo);
+//   }
+//   return returnValue ?? null;
+// };
 
 const Login = () => import('../pages/login/Login');
+const LoginPage = () => import('../pages/login/LoginPage');
+const LoginCallback = () => import('../pages/login/LoginCallback');
+const NusLogin = () => import('../pages/login/NusLogin');
 const Contributors = () => import('../pages/contributors/Contributors');
 const GitHubCallback = () => import('../pages/githubCallback/GitHubCallback');
 const Sicp = () => import('../pages/sicp/Sicp');
-const GitHubClassroom = () => import('../pages/githubAssessments/GitHubClassroom');
 const Playground = () => import('../pages/playground/Playground');
 const NotFound = () => import('../pages/notFound/NotFound');
 const Welcome = () => import('../pages/welcome/Welcome');
@@ -43,57 +45,34 @@ const ViewStory = async () => {
 const Stories = () => import('../pages/stories/Stories');
 
 const commonChildrenRoutes: RouteObject[] = [
-  {
-    path: 'contributors',
-    lazy: Contributors
-  },
-  {
-    path: 'callback/github',
-    lazy: GitHubCallback
-  },
-  {
-    path: 'sicpjs/:section?',
-    lazy: Sicp
-  },
-  {
-    path: 'githubassessments/*',
-    lazy: GitHubClassroom,
-    loader: conditionalLoader(!Constants.enableGitHubAssessments, '/')
-  }
+  { path: 'contributors', lazy: Contributors },
+  { path: 'callback/github', lazy: GitHubCallback },
+  { path: 'sicpjs/:section?', lazy: Sicp }
 ];
 
 export const playgroundOnlyRouterConfig: RouteObject[] = [
   {
-    path: '/*',
+    path: '*',
     element: <Application />,
     children: [
-      {
-        path: '',
-        element: <Navigate to="/playground" replace />
-      },
-      {
-        path: 'playground',
-        lazy: Playground
-      },
+      { path: '', element: <Navigate to="/playground" replace /> },
+      { path: 'playground', lazy: Playground },
       ...commonChildrenRoutes,
-      {
-        path: '*',
-        lazy: NotFound
-      }
+      { path: '*', lazy: NotFound }
     ]
   }
 ];
 
 export const getFullAcademyRouterConfig = ({
   name,
-  role,
   isLoggedIn,
-  courseId
+  courseId,
+  academyRoutes = []
 }: {
   name?: string;
-  role?: Role;
   isLoggedIn: boolean;
   courseId?: number | null;
+  academyRoutes?: RouteObject[];
 }): RouteObject[] => {
   const welcomeLoader = () => {
     if (name === undefined) {
@@ -105,11 +84,18 @@ export const getFullAcademyRouterConfig = ({
     return null;
   };
 
-  const ensureUserAndRole = () => {
-    if (name === undefined) {
-      return redirect('/login');
+  const ensureUserAndRole = (r: RouteObject) => {
+    return new GuardedRoute(r)
+      .check(s => s.session.name !== undefined, '/login')
+      .check(s => s.session.role !== undefined, '/welcome')
+      .build();
+  };
+
+  const homePageRedirect = () => {
+    if (!isLoggedIn) {
+      return redirect('/login', { status: 401 });
     }
-    if (role === undefined) {
+    if (courseId === null) {
       return redirect('/welcome');
     }
     return null;
@@ -117,70 +103,42 @@ export const getFullAcademyRouterConfig = ({
 
   return [
     {
-      path: '/*',
+      path: 'nus_login',
+      lazy: Login,
+      loader: () => (Constants.hasNusAuthProviders ? null : redirect('/login')),
+      children: [{ path: '', lazy: NusLogin }]
+    },
+    {
+      path: '*',
       element: <Application />,
       children: [
         {
           path: '',
-          element: (
-            <Navigate
-              to={!isLoggedIn ? '/login' : courseId === null ? '/welcome' : `/courses/${courseId}`}
-              replace
-            />
-          )
+          element: <Navigate to={`/courses/${courseId}`} replace />,
+          loader: homePageRedirect
         },
         {
           path: 'login',
-          lazy: Login
+          lazy: Login,
+          loader: () => (Constants.hasOtherAuthProviders ? null : redirect('/nus_login')),
+          children: [{ path: '', lazy: LoginPage }]
         },
         {
-          path: 'welcome',
-          lazy: Welcome,
-          loader: welcomeLoader
+          path: 'login',
+          lazy: Login,
+          children: [{ path: 'callback', lazy: LoginCallback }]
         },
-        {
-          path: 'courses',
-          element: <Navigate to="/" />
-        },
-        {
-          path: 'courses/:courseId/*',
-          lazy: Academy,
-          loader: ensureUserAndRole
-        },
-        {
-          path: 'playground',
-          lazy: Playground,
-          loader: ensureUserAndRole
-        },
-        {
-          path: 'mission-control/:assessmentId?/:questionId?',
-          lazy: MissionControl
-        },
-        {
-          path: 'courses/:courseId/stories/new',
-          lazy: EditStory,
-          loader: ensureUserAndRole
-        },
-        {
-          path: 'courses/:courseId/stories/view/:id',
-          lazy: ViewStory,
-          loader: ensureUserAndRole
-        },
-        {
-          path: 'courses/:courseId/stories/edit/:id',
-          lazy: EditStory,
-          loader: ensureUserAndRole
-        },
-        {
-          path: 'courses/:courseId/stories',
-          lazy: Stories,
-          loader: ensureUserAndRole
-        },
+        { path: 'welcome', lazy: Welcome, loader: welcomeLoader },
+        { path: 'courses', element: <Navigate to="/" /> },
+        ensureUserAndRole({ path: 'courses/:courseId/*', lazy: Academy, children: academyRoutes }),
+        ensureUserAndRole({ path: 'playground', lazy: Playground }),
+        { path: 'mission-control/:assessmentId?/:questionId?', lazy: MissionControl },
+        ensureUserAndRole({ path: 'courses/:courseId/stories/new', lazy: EditStory }),
+        ensureUserAndRole({ path: 'courses/:courseId/stories/view/:id', lazy: ViewStory }),
+        ensureUserAndRole({ path: 'courses/:courseId/stories/edit/:id', lazy: EditStory }),
+        ensureUserAndRole({ path: 'courses/:courseId/stories', lazy: Stories }),
         ...commonChildrenRoutes,
-        {
-          path: '*',
-          lazy: NotFound
-        }
+        { path: '*', lazy: NotFound }
       ]
     }
   ];

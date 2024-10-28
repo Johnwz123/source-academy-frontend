@@ -1,7 +1,7 @@
+import { Store } from '@reduxjs/toolkit';
 import { BFSRequire, configure } from 'browserfs';
 import { ApiError } from 'browserfs/dist/node/core/api_error';
 import { FSModule } from 'browserfs/dist/node/core/FS';
-import { Store } from 'redux';
 
 import { OverallState } from '../../commons/application/ApplicationTypes';
 import { setInBrowserFileSystem } from '../../commons/fileSystem/FileSystemActions';
@@ -15,7 +15,6 @@ import { EditorTabState, WorkspaceManagerState } from '../../commons/workspace/W
  */
 export const WORKSPACE_BASE_PATHS: Record<keyof WorkspaceManagerState, string> = {
   assessment: '',
-  githubAssessment: '',
   grading: '',
   playground: '/playground',
   sicp: '/sicp',

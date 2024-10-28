@@ -1,4 +1,4 @@
-import { useSelector } from 'react-redux';
+import { useTypedSelector } from 'src/commons/utils/Hooks';
 import { deepFilter, shallowRender } from 'src/commons/utils/TestUtils';
 
 import { Role } from '../../../application/ApplicationTypes';
@@ -8,11 +8,11 @@ jest.mock('react-redux', () => ({
   ...jest.requireActual('react-redux'),
   useSelector: jest.fn()
 }));
-const useSelectorMock = useSelector as jest.Mock;
+const useSelectorMock = useTypedSelector as jest.Mock;
 
 const assessmentTypes = ['Missions', 'Quests', 'Paths', 'Contests', 'Others'];
-const staffRoutes = ['grading', 'groundcontrol', 'sourcereel', 'gamesimulator', 'dashboard'];
-const adminRoutes = ['adminpanel'];
+const staffRoutes = ['grading', 'sourcereel', 'gamesimulator', 'dashboard', 'teamformation'];
+const adminRoutes = ['groundcontrol', 'adminpanel'];
 const courseId = 0;
 const createCoursePath = (path: string) => `/courses/${courseId}/${path}`;
 
@@ -20,7 +20,8 @@ const assessmentPaths = assessmentTypes.map(e => e.toLowerCase()).map(createCour
 const staffPaths = staffRoutes.map(createCoursePath);
 const adminPaths = adminRoutes.map(createCoursePath);
 
-const createMatchFn = (to: string) => (e: React.ReactElement) => e.props.to === to;
+const createMatchFn = (to: string) => (e: React.ReactElement) =>
+  e.props.to === to && !e.props.disabled;
 const getChildren = (e: React.ReactElement) => e.props.children;
 
 const validateAssessmentPaths = (tree: React.ReactElement, exist: boolean = true) =>
@@ -43,7 +44,7 @@ const mockProps = {
 };
 const element = <AcademyNavigationBar {...mockProps} />;
 
-test('MissionControl, GroundControl, Sourcereel, GameSimulator, Dashboard, Grading and AdminPanel NavLinks do NOT render for Role.Student', () => {
+test('MissionControl, GroundControl, Sourcereel, GameSimulator, Dashboard, Grading, Team Formation and AdminPanel NavLinks do NOT render for Role.Student', () => {
   useSelectorMock.mockReturnValue({
     role: Role.Student,
     courseId
@@ -57,7 +58,7 @@ test('MissionControl, GroundControl, Sourcereel, GameSimulator, Dashboard, Gradi
   validateAdminPaths(tree, false);
 });
 
-test('MissionControl, GroundControl, Sourcereel, GameSimulator, Dashboard and Grading NavLinks render for Role.Staff', () => {
+test('MissionControl, GroundControl, Sourcereel, GameSimulator, Dashboard, Team Formation and Grading NavLinks render for Role.Staff', () => {
   useSelectorMock.mockReturnValueOnce({
     role: Role.Staff,
     courseId
@@ -71,7 +72,7 @@ test('MissionControl, GroundControl, Sourcereel, GameSimulator, Dashboard and Gr
   validateAdminPaths(tree, false);
 });
 
-test('MissionControl, GroundControl, Sourcereel, GameSimulator, Dashboard, Grading and AdminPanel NavLinks render for Role.Admin', () => {
+test('MissionControl, GroundControl, Sourcereel, GameSimulator, Dashboard, Grading, Team Formation and AdminPanel NavLinks render for Role.Admin', () => {
   useSelectorMock.mockReturnValueOnce({
     role: Role.Admin,
     courseId

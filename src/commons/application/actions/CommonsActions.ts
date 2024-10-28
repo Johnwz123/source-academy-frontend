@@ -1,8 +1,13 @@
 import { Router } from '@remix-run/router';
-import { action } from 'typesafe-actions'; // EDITED
+import { createActions } from 'src/commons/redux/utils';
 
-import { LOG_OUT, UPDATE_REACT_ROUTER } from '../types/CommonsTypes';
+const CommonsActions = createActions('commons', {
+  logOut: () => ({}),
+  updateReactRouter: (updatedRouter: Router) => updatedRouter
+});
 
-export const logOut = () => action(LOG_OUT);
-export const updateReactRouter = (updatedRouter: Router) =>
-  action(UPDATE_REACT_ROUTER, updatedRouter);
+// For compatibility with existing code (reducer)
+export const { logOut, updateReactRouter } = CommonsActions;
+
+// For compatibility with existing code (actions helper)
+export default CommonsActions;

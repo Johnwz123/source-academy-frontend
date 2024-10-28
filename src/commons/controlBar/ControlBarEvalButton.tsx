@@ -1,21 +1,18 @@
+import { Tooltip } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
-import { Tooltip2 } from '@blueprintjs/popover2';
 import React from 'react';
 
 import ControlButton from '../ControlButton';
 
-type ControlBarEvalButtonProps = {
+type Props = {
   handleReplEval: () => void;
   isRunning: boolean;
 };
 
-export const ControlBarEvalButton: React.FC<ControlBarEvalButtonProps> = ({
-  handleReplEval,
-  isRunning
-}) => {
+export const ControlBarEvalButton: React.FC<Props> = ({ handleReplEval, isRunning }) => {
   return isRunning ? null : (
-    <Tooltip2 content="...or press shift-enter in the REPL">
+    <Tooltip content="...or press shift-enter in the REPL">
       <ControlButton label="Eval" icon={IconNames.CODE} onClick={handleReplEval} />
-    </Tooltip2>
+    </Tooltip>
   );
 };

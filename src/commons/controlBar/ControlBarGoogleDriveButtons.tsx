@@ -1,13 +1,18 @@
-import { ButtonGroup, Classes, Intent } from '@blueprintjs/core';
+import { ButtonGroup, Classes, Intent, Popover, Tooltip } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
-import { Popover2, Tooltip2 } from '@blueprintjs/popover2';
 import React from 'react';
 
 import { PersistenceFile, PersistenceState } from '../../features/persistence/PersistenceTypes';
 import ControlButton from '../ControlButton';
 import { useResponsive } from '../utils/Hooks';
 
-export type ControlBarGoogleDriveButtonsProps = {
+const stateToIntent: { [state in PersistenceState]: Intent } = {
+  INACTIVE: Intent.NONE,
+  SAVED: Intent.PRIMARY,
+  DIRTY: Intent.WARNING
+};
+
+type Props = {
   isFolderModeEnabled: boolean;
   loggedInAs?: string;
   currentFile?: PersistenceFile;
@@ -19,13 +24,7 @@ export type ControlBarGoogleDriveButtonsProps = {
   onPopoverOpening?: () => any;
 };
 
-const stateToIntent: { [state in PersistenceState]: Intent } = {
-  INACTIVE: Intent.NONE,
-  SAVED: Intent.PRIMARY,
-  DIRTY: Intent.WARNING
-};
-
-export const ControlBarGoogleDriveButtons: React.FC<ControlBarGoogleDriveButtonsProps> = props => {
+export const ControlBarGoogleDriveButtons: React.FC<Props> = props => {
   const { isMobileBreakpoint } = useResponsive();
   const state: PersistenceState = props.currentFile
     ? props.isDirty
@@ -56,17 +55,17 @@ export const ControlBarGoogleDriveButtons: React.FC<ControlBarGoogleDriveButtons
     <ControlButton label="Save as" icon={IconNames.SEND_TO} onClick={props.onClickSaveAs} />
   );
   const logoutButton = props.loggedInAs && (
-    <Tooltip2 content={`Logged in as ${props.loggedInAs}`}>
+    <Tooltip content={`Logged in as ${props.loggedInAs}`}>
       <ControlButton label="Log out" icon={IconNames.LOG_OUT} onClick={props.onClickLogOut} />
-    </Tooltip2>
+    </Tooltip>
   );
   const tooltipContent = props.isFolderModeEnabled
     ? 'Currently unsupported in Folder mode'
     : undefined;
 
   return (
-    <Tooltip2 content={tooltipContent} disabled={tooltipContent === undefined}>
-      <Popover2
+    <Tooltip content={tooltipContent} disabled={tooltipContent === undefined}>
+      <Popover
         autoFocus={false}
         content={
           <div>
@@ -83,7 +82,7 @@ export const ControlBarGoogleDriveButtons: React.FC<ControlBarGoogleDriveButtons
         disabled={props.isFolderModeEnabled}
       >
         {mainButton}
-      </Popover2>
-    </Tooltip2>
+      </Popover>
+    </Tooltip>
   );
 };

@@ -7,14 +7,7 @@ import AchievementPreview from '../../../commons/achievement/control/Achievement
 import GoalEditor from '../../../commons/achievement/control/GoalEditor';
 import AchievementInferencer from '../../../commons/achievement/utils/AchievementInferencer';
 import { Prompt } from '../../../commons/ReactRouterPrompt';
-import {
-  bulkUpdateAchievements,
-  bulkUpdateGoals,
-  getAchievements,
-  getOwnGoals,
-  removeAchievement,
-  removeGoal
-} from '../../../features/achievement/AchievementActions';
+import AchievementActions from '../../../features/achievement/AchievementActions';
 import { AchievementContext } from '../../../features/achievement/AchievementConstants';
 import { AchievementItem, GoalDefinition } from '../../../features/achievement/AchievementTypes';
 
@@ -30,18 +23,30 @@ const AchievementControl: React.FC = () => {
   } = useMemo(
     () => ({
       handleBulkUpdateAchievements: (achievement: AchievementItem[]) =>
-        dispatch(bulkUpdateAchievements(achievement)),
-      handleBulkUpdateGoals: (goals: GoalDefinition[]) => dispatch(bulkUpdateGoals(goals)),
-      handleGetAchievements: () => dispatch(getAchievements()),
-      handleGetOwnGoals: () => dispatch(getOwnGoals()),
-      handleRemoveAchievement: (uuid: string) => dispatch(removeAchievement(uuid)),
-      handleRemoveGoal: (uuid: string) => dispatch(removeGoal(uuid))
+        dispatch(AchievementActions.bulkUpdateAchievements(achievement)),
+      handleBulkUpdateGoals: (goals: GoalDefinition[]) =>
+        dispatch(AchievementActions.bulkUpdateGoals(goals)),
+      handleGetAchievements: () => dispatch(AchievementActions.getAchievements()),
+      handleGetOwnGoals: () => dispatch(AchievementActions.getOwnGoals()),
+      handleRemoveAchievement: (uuid: string) =>
+        dispatch(AchievementActions.removeAchievement(uuid)),
+      handleRemoveGoal: (uuid: string) => dispatch(AchievementActions.removeGoal(uuid))
     }),
     [dispatch]
   );
 
-  const inferencer = useTypedSelector(
-    state => new AchievementInferencer(state.achievement.achievements, state.achievement.goals)
+  // TODO: This is a hacky fix. By right, we shouldn't need to use an
+  // inferencer instance since we can encapsulate the logic using hooks
+  // and component state.
+  const [initialAchievements, initialGoals] = useTypedSelector(state => [
+    state.achievement.achievements,
+    state.achievement.goals
+  ]);
+  const inferencer = useMemo(
+    () => new AchievementInferencer(initialAchievements, initialGoals),
+    // We only want to create the inferencer once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   /**
@@ -55,7 +60,7 @@ const AchievementControl: React.FC = () => {
   /**
    * Monitors changes that are awaiting publish
    */
-  const [awaitPublish, setAwaitPublish] = useState<boolean>(false);
+  const [awaitPublish, setAwaitPublish] = useState(false);
   const publishChanges = () => {
     // NOTE: Goals and achievements must exist in the backend before the association can be built
     handleBulkUpdateGoals(inferencer.getAllGoals());

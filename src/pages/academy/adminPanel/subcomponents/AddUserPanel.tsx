@@ -1,18 +1,18 @@
 import {
   Button,
   Callout,
-  FileInput,
+  Classes,
   FormGroup,
   H2,
   H4,
   HTMLSelect,
   Icon,
   Intent,
+  Popover,
   Position
 } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
-import { Popover2 } from '@blueprintjs/popover2';
-import { GridApi, GridReadyEvent } from 'ag-grid-community';
+import { ColDef } from 'ag-grid-community';
 import { AgGridReact } from 'ag-grid-react';
 import { uniqBy } from 'lodash';
 import React from 'react';
@@ -31,45 +31,30 @@ export type UsernameRoleGroup = {
   group?: string;
 };
 
+const columnDefs: ColDef<UsernameRoleGroup>[] = [
+  { headerName: 'Username', field: 'username' },
+  { headerName: 'Role', field: 'role' },
+  { headerName: 'Group', field: 'group' }
+];
+
+const defaultColumnDefs: ColDef = {
+  flex: 1,
+  filter: true,
+  resizable: true,
+  sortable: true
+};
+
 const AddUserPanel: React.FC<Props> = props => {
   const [users, setUsers] = React.useState<UsernameRoleGroup[]>([]);
   const [invalidCsvMsg, setInvalidCsvMsg] = React.useState<string | JSX.Element>('');
-  const gridApi = React.useRef<GridApi>();
   const { CSVReader } = useCSVReader();
-
-  const columnDefs = [
-    {
-      headerName: 'Username',
-      field: 'username'
-    },
-    {
-      headerName: 'Role',
-      field: 'role'
-    },
-    {
-      headerName: 'Group',
-      field: 'group'
-    }
-  ];
-
-  const defaultColumnDefs = {
-    filter: true,
-    resizable: true,
-    sortable: true
-  };
-
-  const onGridReady = (params: GridReadyEvent) => {
-    gridApi.current = params.api;
-  };
 
   const grid = (
     <div className="Grid ag-grid-parent ag-theme-balham">
       <AgGridReact
-        domLayout={'autoHeight'}
+        domLayout="autoHeight"
         columnDefs={columnDefs}
         defaultColDef={defaultColumnDefs}
-        onGridReady={onGridReady}
-        onGridSizeChanged={() => gridApi.current?.sizeColumnsToFit()}
         rowData={users}
         rowHeight={36}
         suppressCellFocus={true}
@@ -100,7 +85,6 @@ const AddUserPanel: React.FC<Props> = props => {
      * valid uploaded entries in the table
      */
     const processed: UsernameRoleGroup[] = [...users];
-
     if (data.length + users.length > 1000) {
       setInvalidCsvMsg('Please limit each upload to 1000 entries!');
       return;
@@ -177,8 +161,11 @@ const AddUserPanel: React.FC<Props> = props => {
               >
                 {({ getRootProps, acceptedFile, ProgressBar, getRemoveFileProps }: any) => (
                   <>
-                    <FileInput text="Upload CSV" inputProps={getRootProps()} />
-                    <Popover2
+                    <label className={Classes.FILE_INPUT} {...getRootProps()}>
+                      <div style={{ minWidth: 250 }}> </div>
+                      <span className={Classes.FILE_UPLOAD_INPUT}>Upload CSV</span>
+                    </label>
+                    <Popover
                       content={
                         <div>
                           <p>
@@ -252,7 +239,7 @@ const AddUserPanel: React.FC<Props> = props => {
                       popoverClassName="file-input-popover"
                     >
                       <Icon icon={IconNames.HELP} className="file-input-icon" />
-                    </Popover2>
+                    </Popover>
                   </>
                 )}
               </CSVReader>
@@ -263,14 +250,14 @@ const AddUserPanel: React.FC<Props> = props => {
               label={
                 <div className="html-select-label">
                   <div>Authentication Provider</div>
-                  <Popover2
+                  <Popover
                     content="The authentication provider your learners will use to log in with"
                     interactionKind="hover-target"
                     position={Position.TOP}
                     popoverClassName="html-select-popover"
                   >
                     <Icon icon={IconNames.HELP} className="html-select-label-icon" />
-                  </Popover2>
+                  </Popover>
                 </div>
               }
               inline

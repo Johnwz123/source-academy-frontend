@@ -1,23 +1,20 @@
-import { Intent, PopoverInteractionKind, Position, Tag } from '@blueprintjs/core';
-import { Popover2 } from '@blueprintjs/popover2';
+import { Intent, Popover, PopoverInteractionKind, Position, Tag } from '@blueprintjs/core';
 import React from 'react';
 import { useDispatch } from 'react-redux';
 
-import { acknowledgeNotifications } from '../application/actions/SessionActions';
+import SessionActions from '../application/actions/SessionActions';
 import { useSession } from '../utils/Hooks';
 import { filterNotificationsById } from './NotificationBadgeHelper';
 import { Notification, NotificationType, NotificationTypes } from './NotificationBadgeTypes';
 
-type NotificationBadgeProps = OwnProps;
-
-type OwnProps = {
+type Props = {
   className?: string;
   disableHover?: boolean; // Set to true to disable popover content
   large?: boolean; // Set to true to use large style
   notificationFilter?: (notifications: Notification[]) => Notification[];
 };
 
-const NotificationBadge: React.FC<NotificationBadgeProps> = props => {
+const NotificationBadge: React.FC<Props> = props => {
   const dispatch = useDispatch();
   const { notifications: initialNotifications } = useSession();
 
@@ -38,7 +35,7 @@ const NotificationBadge: React.FC<NotificationBadgeProps> = props => {
   if (!props.disableHover) {
     const makeNotificationTag = (notification: Notification) => {
       const onRemove = () =>
-        dispatch(acknowledgeNotifications(filterNotificationsById(notification.id)));
+        dispatch(SessionActions.acknowledgeNotifications(filterNotificationsById(notification.id)));
 
       return (
         <Tag
@@ -56,7 +53,7 @@ const NotificationBadge: React.FC<NotificationBadgeProps> = props => {
     const notificationTags = <div className="col">{notifications.map(makeNotificationTag)}</div>;
 
     return (
-      <Popover2
+      <Popover
         className={props.className}
         content={notificationTags}
         interactionKind={PopoverInteractionKind.HOVER}
@@ -66,7 +63,7 @@ const NotificationBadge: React.FC<NotificationBadgeProps> = props => {
         lazy={true}
       >
         {notificationIcon}
-      </Popover2>
+      </Popover>
     );
   }
 
@@ -77,16 +74,14 @@ const makeNotificationMessage = (type: NotificationType) => {
   switch (type) {
     case NotificationTypes.new:
       return 'This assessment is new.';
-    case NotificationTypes.deadline:
-      return 'This assessment is closing soon.';
-    case NotificationTypes.autograded:
-      return 'This assessment has been autograded.';
     case NotificationTypes.submitted:
       return 'This submission is new.';
     case NotificationTypes.unsubmitted:
       return 'This assessment has been unsubmitted.';
-    case NotificationTypes.graded:
-      return 'This assessment has been manually graded.';
+    case NotificationTypes.published_grading:
+      return "This submission's grading has been published.";
+    case NotificationTypes.unpublished_grading:
+      return "This submission's grading has been unpublished.";
     case NotificationTypes.new_message:
       return 'There are new messages.';
     default:

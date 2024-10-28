@@ -8,7 +8,7 @@ import classes from 'src/styles/FileSystemView.module.scss';
 
 import { rmdirRecursively } from '../fileSystem/utils';
 import { showSimpleConfirmDialog, showSimpleErrorDialog } from '../utils/DialogHelper';
-import { removeEditorTabsForDirectory } from '../workspace/WorkspaceActions';
+import WorkspaceActions from '../workspace/WorkspaceActions';
 import { WorkspaceLocation } from '../workspace/WorkspaceTypes';
 import FileSystemViewContextMenu from './FileSystemViewContextMenu';
 import FileSystemViewFileName from './FileSystemViewFileName';
@@ -16,7 +16,7 @@ import FileSystemViewIndentationPadding from './FileSystemViewIndentationPadding
 import FileSystemViewList from './FileSystemViewList';
 import FileSystemViewPlaceholderNode from './FileSystemViewPlaceholderNode';
 
-export type FileSystemViewDirectoryNodeProps = {
+type Props = {
   workspaceLocation: WorkspaceLocation;
   fileSystem: FSModule;
   basePath: string;
@@ -25,24 +25,21 @@ export type FileSystemViewDirectoryNodeProps = {
   refreshParentDirectory: () => void;
 };
 
-const FileSystemViewDirectoryNode: React.FC<FileSystemViewDirectoryNodeProps> = (
-  props: FileSystemViewDirectoryNodeProps
-) => {
-  const {
-    workspaceLocation,
-    fileSystem,
-    basePath,
-    directoryName,
-    indentationLevel,
-    refreshParentDirectory
-  } = props;
+const FileSystemViewDirectoryNode: React.FC<Props> = ({
+  workspaceLocation,
+  fileSystem,
+  basePath,
+  directoryName,
+  indentationLevel,
+  refreshParentDirectory
+}) => {
   const fullPath = path.join(basePath, directoryName);
 
-  const [isExpanded, setIsExpanded] = React.useState<boolean>(false);
-  const [isEditing, setIsEditing] = React.useState<boolean>(false);
-  const [isAddingNewFile, setIsAddingNewFile] = React.useState<boolean>(false);
-  const [isAddingNewDirectory, setIsAddingNewDirectory] = React.useState<boolean>(false);
-  const [fileSystemViewListKey, setFileSystemViewListKey] = React.useState<number>(0);
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [isAddingNewFile, setIsAddingNewFile] = React.useState(false);
+  const [isAddingNewDirectory, setIsAddingNewDirectory] = React.useState(false);
+  const [fileSystemViewListKey, setFileSystemViewListKey] = React.useState(0);
   const dispatch = useDispatch();
 
   const toggleIsExpanded = () => {
@@ -81,7 +78,7 @@ const FileSystemViewDirectoryNode: React.FC<FileSystemViewDirectoryNodeProps> = 
         return;
       }
 
-      dispatch(removeEditorTabsForDirectory(workspaceLocation, fullPath));
+      dispatch(WorkspaceActions.removeEditorTabsForDirectory(workspaceLocation, fullPath));
       rmdirRecursively(fileSystem, fullPath).then(refreshParentDirectory);
     });
   };

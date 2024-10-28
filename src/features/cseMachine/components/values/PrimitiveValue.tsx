@@ -2,8 +2,8 @@ import React from 'react';
 
 import { Config } from '../../CseMachineConfig';
 import { Layout } from '../../CseMachineLayout';
-import { PrimitiveTypes, ReferenceType } from '../../CseMachineTypes';
-import { getTextWidth, isNull } from '../../CseMachineUtils';
+import { Primitive, ReferenceType } from '../../CseMachineTypes';
+import { getTextWidth, isNull, isSourceObject } from '../../CseMachineUtils';
 import { ArrayNullUnit } from '../ArrayNullUnit';
 import { Binding } from '../Binding';
 import { Text } from '../Text';
@@ -16,59 +16,56 @@ export class PrimitiveValue extends Value {
 
   constructor(
     /** data */
-    readonly data: PrimitiveTypes,
+    readonly data: Primitive,
     /** what this value is being referenced by */
-    readonly referencedBy: ReferenceType[]
+    reference: ReferenceType
   ) {
     super();
 
     // derive the coordinates from the main reference (binding / array unit)
-    const mainReference = this.referencedBy[0];
-    if (mainReference instanceof Binding) {
-      this._x = mainReference.x() + getTextWidth(mainReference.keyString) + Config.TextPaddingX;
-      this._y = mainReference.y();
-      this.text = new Text(this.data, this._x, this._y, { isStringIdentifiable: true });
+    if (reference instanceof Binding) {
+      this._x = reference.x() + getTextWidth(reference.keyString) + Config.TextPaddingX;
+      this._y = reference.y();
+      this.text = new Text(this.data, this.x(), this.y(), {
+        isStringIdentifiable: !isSourceObject(data)
+      });
     } else {
-      const maxWidth = mainReference.width();
-      const textWidth = Math.min(getTextWidth(String(this.data)), maxWidth);
-      this._x = mainReference.x() + (mainReference.width() - textWidth) / 2;
-      this._y = mainReference.y() + (mainReference.height() - Config.FontSize) / 2;
+      const maxWidth = reference.width();
+      const textWidth = isNull(this.data)
+        ? 0
+        : Math.min(
+            getTextWidth(isSourceObject(data) ? data.toReplString() : String(this.data)),
+            maxWidth
+          );
+      this._x = reference.x() + (reference.width() - textWidth) / 2;
+      this._y = reference.y() + (reference.height() - Config.FontSize) / 2;
       this.text = isNull(this.data)
-        ? new ArrayNullUnit([mainReference])
+        ? new ArrayNullUnit(reference)
         : new Text(this.data, this.x(), this.y(), {
             maxWidth: maxWidth,
-            isStringIdentifiable: true
+            isStringIdentifiable: !isSourceObject(data),
+            faded: true
           });
     }
 
     this._width = this.text.width();
     this._height = this.text.height();
+    this.ref = this.text.ref;
+    this.addReference(reference);
   }
 
-  reset(): void {
-    super.reset();
-    this.referencedBy.length = 0;
+  handleNewReference(): void {
+    if (this.references.length > 1)
+      throw new Error('Primitive values cannot have more than one reference!');
   }
-  updatePosition = () => {
-    const mainReference = this.referencedBy[0];
-    if (mainReference instanceof Binding) {
-      this._x = mainReference.x() + getTextWidth(mainReference.keyString) + Config.TextPaddingX;
-      this._y = mainReference.y();
-    } else {
-      const maxWidth = mainReference.width();
-      const textWidth = Math.min(getTextWidth(String(this.data)), maxWidth);
-      this._x = mainReference.x() + (mainReference.width() - textWidth) / 2;
-      this._y = mainReference.y() + (mainReference.height() - Config.FontSize) / 2;
-    }
-    this.text instanceof Text
-      ? this.text.updatePosition(this.x(), this.y())
-      : this.text.updatePosition();
-  };
-  onMouseEnter(): void {}
-  onMouseLeave(): void {}
+
+  markAsReferenced() {
+    if (this.isReferenced()) return;
+    super.markAsReferenced();
+    if (this.text instanceof Text) this.text.options.faded = false;
+  }
 
   draw(): React.ReactNode {
-    this._isDrawn = true;
     return <React.Fragment key={Layout.key++}>{this.text.draw()}</React.Fragment>;
   }
 }

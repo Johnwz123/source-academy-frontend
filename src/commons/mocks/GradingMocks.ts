@@ -6,7 +6,12 @@ import {
   GradingQuery
 } from '../../features/grading/GradingTypes';
 import { Role } from '../application/ApplicationTypes';
-import { Testcase, TestcaseTypes } from '../assessment/AssessmentTypes';
+import {
+  AssessmentStatuses,
+  ProgressStatuses,
+  Testcase,
+  TestcaseTypes
+} from '../assessment/AssessmentTypes';
 import { mockLibrary } from './AssessmentMocks';
 import { mockFetchRole } from './UserMocks';
 
@@ -23,11 +28,14 @@ export const mockGradingOverviews: GradingOverview[] = [
     maxXp: 100,
     studentId: 0,
     studentName: 'Al Gorithm',
+    studentNames: [],
     studentUsername: 'E0123456',
+    studentUsernames: [],
     submissionId: 1,
-    submissionStatus: 'submitted',
+    submissionStatus: AssessmentStatuses.submitted,
+    progress: ProgressStatuses.published,
+    isGradingPublished: true,
     groupName: '1D',
-    gradingStatus: 'graded',
     questionCount: 6,
     gradedCount: 6
   },
@@ -43,11 +51,14 @@ export const mockGradingOverviews: GradingOverview[] = [
     maxXp: 400,
     studentId: 0,
     studentName: 'Dee Sign',
+    studentNames: [],
     studentUsername: 'E0000000',
+    studentUsernames: [],
     submissionId: 2,
-    submissionStatus: 'submitted',
+    submissionStatus: AssessmentStatuses.submitted,
+    progress: ProgressStatuses.submitted,
+    isGradingPublished: false,
     groupName: '1F',
-    gradingStatus: 'grading',
     questionCount: 6,
     gradedCount: 2
   },
@@ -63,12 +74,15 @@ export const mockGradingOverviews: GradingOverview[] = [
     maxXp: 1000,
     studentId: 1,
     studentName: 'May Trix',
+    studentNames: [],
     studentUsername: 'E0000001',
+    studentUsernames: [],
     submissionId: 3,
-    submissionStatus: 'submitted',
+    submissionStatus: AssessmentStatuses.submitted,
+    progress: ProgressStatuses.graded,
+    isGradingPublished: false,
     groupName: '1F',
-    gradingStatus: 'none',
-    questionCount: 6,
+    questionCount: 0,
     gradedCount: 0
   }
 ];
@@ -86,7 +100,8 @@ export const mockFetchGradingOverview = (
   accessToken: string,
   group: boolean,
   pageParams: { offset: number; pageSize: number },
-  backendParams: Object
+  backendParams: object,
+  sortedBy: { sortBy: string; sortDirection: string }
 ): GradingOverview[] | null => {
   // mocks backend role fetching
   const permittedRoles: Role[] = [Role.Admin, Role.Staff];
@@ -117,6 +132,7 @@ export const mockGradingAnswer: GradingAnswer = [
       answer: `function remainder(n, d) {
   return (n - d) < 0 ? n : remainder(n - d, d);
 }`,
+      lastModifiedAt: '2023-08-05T17:48:24.000000Z',
       content: `
 Hello and welcome to this assessment! This is the *0th question*.
 
@@ -233,6 +249,7 @@ _italics_
       postpend: '',
       testcases: [],
       answer: "This student's answer to the 1st question",
+      lastModifiedAt: '2023-08-05T17:48:24.000000Z',
       content: 'Hello and welcome to this assessment! This is the 1st question.',
       id: 1,
       library: mockLibrary,
@@ -325,6 +342,7 @@ New message from **Avenger**!
       postpend: '',
       testcases: [],
       answer: 3,
+      lastModifiedAt: '2023-08-05T17:48:24.000000Z',
       solution: 2,
       content:
         'Hello and welcome to this assessment! This is the 2nd question. Oddly enough, it is an MCQ question!',

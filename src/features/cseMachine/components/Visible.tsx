@@ -4,7 +4,7 @@ import { RefObject } from 'react';
 import { IVisible } from '../CseMachineTypes';
 
 /**
- * class to implement the IVisible interface, used by both compact and non-compact components.
+ * class to implement the IVisible interface, used by all components.
  */
 export abstract class Visible implements IVisible {
   protected _x: number = 0;
@@ -30,6 +30,6 @@ export abstract class Visible implements IVisible {
   reset(): void {
     this._isDrawn = false;
   }
-  readonly ref: RefObject<any> = React.createRef();
+  public ref: RefObject<any> = React.createRef();
   abstract draw(key?: number): React.ReactNode;
 }

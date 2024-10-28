@@ -1,7 +1,7 @@
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-balham.css';
 
-import { ColDef, GridApi, GridReadyEvent } from 'ag-grid-community';
+import { ColDef } from 'ag-grid-community';
 import { AgGridReact } from 'ag-grid-react';
 import { startCase } from 'lodash';
 import React from 'react';
@@ -11,31 +11,16 @@ import { useTypedSelector } from 'src/commons/utils/Hooks';
 import ContentDisplay from '../../../commons/ContentDisplay';
 import { fetchGroupGradingSummary } from '../../../features/dashboard/DashboardActions';
 
-type DashboardProps = StateProps;
-
-export type StateProps = {};
-
 const defaultColumnDefs: ColDef = {
+  flex: 1,
   filter: true,
   resizable: true,
   sortable: true
 };
 
-const Dashboard: React.FC<DashboardProps> = props => {
+const Dashboard: React.FC = () => {
   const dispatch = useDispatch();
   const gradingSummary = useTypedSelector(state => state.dashboard.gradingSummary);
-
-  let gridApi: GridApi | undefined;
-
-  const onGridReady = (params: GridReadyEvent) => {
-    gridApi = params.api;
-  };
-
-  const resizeGrid = () => {
-    if (gridApi) {
-      gridApi.sizeColumnsToFit();
-    }
-  };
 
   const columnDefs = gradingSummary.cols.map(e => {
     return {
@@ -48,11 +33,9 @@ const Dashboard: React.FC<DashboardProps> = props => {
     <div className="Dashboard">
       <div className="Grid ag-grid-parent ag-theme-balham">
         <AgGridReact
-          domLayout={'autoHeight'}
+          domLayout="autoHeight"
           columnDefs={columnDefs}
           defaultColDef={defaultColumnDefs}
-          onGridReady={onGridReady}
-          onGridSizeChanged={resizeGrid}
           rowData={gradingSummary.rows}
           rowHeight={30}
           suppressCellFocus={true}
@@ -71,5 +54,10 @@ const Dashboard: React.FC<DashboardProps> = props => {
     </div>
   );
 };
+
+// react-router lazy loading
+// https://reactrouter.com/en/main/route/lazy
+export const Component = Dashboard;
+Component.displayName = 'Dashboard';
 
 export default Dashboard;

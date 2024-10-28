@@ -5,13 +5,9 @@ import debounceRender from 'react-debounce-render';
 import Constants from 'src/commons/utils/Constants';
 import { propsAreEqual } from 'src/commons/utils/MemoizeHelper';
 import { renderStoryMarkdown } from 'src/commons/utils/StoriesHelper';
-import { addStoryEnv, clearStoryEnv } from 'src/features/stories/StoriesActions';
+import StoriesActions from 'src/features/stories/StoriesActions';
 
 import { store } from '../../../pages/createStore';
-
-type UserBlogProps = {
-  fileContent: string;
-};
 
 export const DEFAULT_ENV = 'default';
 
@@ -33,14 +29,18 @@ function handleEnvironment(envConfig: Record<string, any>): void {
       ? variant
       : Constants.defaultSourceVariant;
 
-    store.dispatch(addStoryEnv(key, envChapter, envVariant));
+    store.dispatch(StoriesActions.addStoryEnv(key, envChapter, envVariant));
   }
 }
 
 function handleHeaders(headers: string): void {
   if (headers === '') {
     store.dispatch(
-      addStoryEnv(DEFAULT_ENV, Constants.defaultSourceChapter, Constants.defaultSourceVariant)
+      StoriesActions.addStoryEnv(
+        DEFAULT_ENV,
+        Constants.defaultSourceChapter,
+        Constants.defaultSourceVariant
+      )
     );
     return;
   }
@@ -65,7 +65,11 @@ function handleHeaders(headers: string): void {
     if (err instanceof yaml.YAMLException) {
       // default headers
       store.dispatch(
-        addStoryEnv(DEFAULT_ENV, Constants.defaultSourceChapter, Constants.defaultSourceVariant)
+        StoriesActions.addStoryEnv(
+          DEFAULT_ENV,
+          Constants.defaultSourceChapter,
+          Constants.defaultSourceVariant
+        )
       );
     }
   }
@@ -87,15 +91,19 @@ export function getYamlHeader(content: string): { header: string; content: strin
   };
 }
 
-const UserBlogContent: React.FC<UserBlogProps> = props => {
+type Props = {
+  fileContent: string;
+};
+
+const UserBlogContent: React.FC<Props> = ({ fileContent }) => {
   const [content, setContent] = useState('');
 
   useEffect(() => {
-    const { header, content } = getYamlHeader(props.fileContent);
+    const { header, content } = getYamlHeader(fileContent);
     setContent(content);
-    store.dispatch(clearStoryEnv());
+    store.dispatch(StoriesActions.clearStoryEnv());
     handleHeaders(header);
-  }, [props.fileContent]);
+  }, [fileContent]);
 
   return content ? (
     <div className="userblogContent">

@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
+import { act } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router';
-import { DeepPartial } from 'redux';
 import { OverallState, Role } from 'src/commons/application/ApplicationTypes';
 import { mockInitialStore } from 'src/commons/mocks/StoreMocks';
-import { assertType } from 'src/commons/utils/TypeHelper';
+import { assertType, DeepPartial } from 'src/commons/utils/TypeHelper';
 
 import { AssessmentConfiguration, AssessmentStatuses } from '../../assessment/AssessmentTypes';
 import { mockAssessmentOverviews } from '../../mocks/AssessmentMocks';
@@ -24,8 +24,10 @@ const assessmentConfigurations: AssessmentConfiguration[] = [
   assessmentConfigId: i,
   type: c,
   isManuallyGraded: false,
+  isGradingAutoPublished: false,
   displayInDashboard: false,
   hasTokenCounter: false,
+  hasVotingFeatures: false,
   hoursBeforeEarlyXpDecay: 0,
   earlySubmissionXp: 0
 }));
@@ -46,7 +48,7 @@ const createProfileWithStore = (storeOverrides?: DeepPartial<OverallState>) => {
   );
 };
 
-test('Profile renders correctly when there are no closed assessments', () => {
+test('Profile renders correctly when there are no closed assessments', async () => {
   const profile = createProfileWithStore({
     session: {
       name: 'yeet',
@@ -56,7 +58,7 @@ test('Profile renders correctly when there are no closed assessments', () => {
       assessmentConfigurations
     }
   });
-  render(profile);
+  await act(() => render(profile));
 
   // Expect the placeholder <div> to be rendered
   const placeholders = screen.getAllByTestId('profile-placeholder');
@@ -70,7 +72,7 @@ test('Profile renders correctly when there are no closed assessments', () => {
   expect(screen.queryAllByTestId('profile-callouts')).toHaveLength(0);
 });
 
-test('Profile renders correctly when there are closed and graded, or closed and not manually graded assessments', () => {
+test('Profile renders correctly when there are closed and graded, or closed and not manually graded assessments', async () => {
   // Only closed and graded, and closed and not manually graded assessments will be rendered in the Profile
   const profile = createProfileWithStore({
     session: {
@@ -81,7 +83,7 @@ test('Profile renders correctly when there are closed and graded, or closed and 
       assessmentConfigurations
     }
   });
-  render(profile);
+  await act(() => render(profile));
 
   // Expect the placeholder <div> to NOT be rendered
   expect(screen.queryAllByTestId('profile-placeholder')).toHaveLength(0);
@@ -93,11 +95,7 @@ test('Profile renders correctly when there are closed and graded, or closed and 
     }
   );
 
-  const numProfileCards = mockAssessmentOverviews.filter(
-    item =>
-      item.status === AssessmentStatuses.submitted &&
-      (item.gradingStatus === 'graded' || item.gradingStatus === 'excluded')
-  ).length;
+  const numProfileCards = mockAssessmentOverviews.filter(item => item.isGradingPublished).length;
 
   [
     'profile-summary-navlink',

@@ -1,18 +1,17 @@
-import { Colors } from '@blueprintjs/core';
+import { Colors, Tooltip } from '@blueprintjs/core';
 import { IconNames } from '@blueprintjs/icons';
-import { Tooltip2 } from '@blueprintjs/popover2';
 import React from 'react';
 
 import ControlButton from '../ControlButton';
 
-type ControlBarToggleFolderModeButtonProps = {
+type Props = {
   isFolderModeEnabled: boolean;
   isSessionActive: boolean;
   isPersistenceActive: boolean;
   toggleFolderMode: () => void;
 };
 
-export const ControlBarToggleFolderModeButton: React.FC<ControlBarToggleFolderModeButtonProps> = ({
+export const ControlBarToggleFolderModeButton: React.FC<Props> = ({
   isFolderModeEnabled,
   isSessionActive,
   isPersistenceActive,
@@ -21,10 +20,10 @@ export const ControlBarToggleFolderModeButton: React.FC<ControlBarToggleFolderMo
   const tooltipContent = isSessionActive
     ? 'Currently unsupported while a collaborative session is active'
     : isPersistenceActive
-    ? 'Currently unsupported while a persistence method is active'
-    : `${isFolderModeEnabled ? 'Disable' : 'Enable'} Folder mode`;
+      ? 'Currently unsupported while a persistence method is active'
+      : `${isFolderModeEnabled ? 'Disable' : 'Enable'} Folder mode`;
   return (
-    <Tooltip2 content={tooltipContent}>
+    <Tooltip content={tooltipContent}>
       <ControlButton
         label="Folder"
         icon={IconNames.FOLDER_CLOSE}
@@ -34,6 +33,6 @@ export const ControlBarToggleFolderModeButton: React.FC<ControlBarToggleFolderMo
         onClick={toggleFolderMode}
         isDisabled={isSessionActive || isPersistenceActive}
       />
-    </Tooltip2>
+    </Tooltip>
   );
 };
